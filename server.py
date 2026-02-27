@@ -16,7 +16,8 @@ import os
 import httpx
 from mcp.server.fastmcp import FastMCP, Context
 
-LF_BASE_URL = os.environ.get("LF_BASE_URL", "https://api.legalforensics.ai").rstrip("/")
+LF_BASE_URL = os.environ.get("LF_BASE_URL", "https://app.legalforensics.ai").rstrip("/")
+PORT = int(os.environ.get("PORT", 8001))
 
 mcp = FastMCP(
     name="LegalForensics",
@@ -304,7 +305,8 @@ async def explain_clause(
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8001))
-    print(f"Starting LegalForensics MCP server on port {port}")
+    print(f"Starting LegalForensics MCP server on port {PORT}")
     print(f"LF API base: {LF_BASE_URL}")
-    mcp.run(transport="sse", host="0.0.0.0", port=port)
+    mcp.settings.host = "0.0.0.0"
+    mcp.settings.port = PORT
+    mcp.run(transport="sse")
