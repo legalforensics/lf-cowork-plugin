@@ -1,0 +1,50 @@
+{
+  "name": "LegalForensics",
+  "description": "Contract risk analysis for SMBs and tech legal/finance teams. Analyze any MSA, NDA, or SOW — get risk posture, top risks, decision guidance, and plain-English summaries.",
+  "version": "1.0.0",
+  "author": "LegalForensics.AI",
+  "homepage": "https://legalforensics.ai",
+  "mcp_server": {
+    "transport": "http",
+    "url": "https://lf-mcp.onrender.com/mcp"
+  },
+  "auth": {
+    "type": "api_key",
+    "header": "X-LF-API-Key",
+    "instructions": "Generate your API key at legalforensics.ai → Settings → API Keys, then paste it here."
+  },
+  "tools": [
+    {
+      "name": "list_contracts",
+      "description": "List all contracts in your LF account, optionally filtered by keyword."
+    },
+    {
+      "name": "get_analysis_report",
+      "description": "Full AI risk analysis: risk posture, top risks, exposure bands, next steps."
+    },
+    {
+      "name": "get_decision_guidance",
+      "description": "Decision brief: sign, negotiate, or walk away — with reasoning."
+    },
+    {
+      "name": "get_narrative_walkthrough",
+      "description": "Plain-English narrative explaining what the contract does and where the risk lies."
+    },
+    {
+      "name": "run_standards_review",
+      "description": "Check contract against your company playbook standards."
+    },
+    {
+      "name": "set_perspective",
+      "description": "Re-analyze from a specific perspective (buyer, seller, vendor, etc.)."
+    },
+    {
+      "name": "get_clause_details",
+      "description": "Deep dive on a single clause: risk factors, explanation, AI rewrite."
+    },
+    {
+      "name": "explain_clause",
+      "description": "Explain pasted clause text in plain English without uploading a contract."
+    }
+  ]
+}

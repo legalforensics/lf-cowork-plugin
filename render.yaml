@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: lf-mcp
+    env: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    envVars:
+      - key: LF_BASE_URL
+        value: https://app.legalforensics.ai
+      - key: PORT
+        value: 10000
