@@ -15,12 +15,14 @@ The server extracts it from the request context and forwards it to the LF API.
 import os
 import httpx
 from mcp.server.fastmcp import FastMCP, Context
+from mcp.server.fastmcp.server import TransportSecuritySettings
 
 LF_BASE_URL = os.environ.get("LF_BASE_URL", "https://app.legalforensics.ai").rstrip("/")
 PORT = int(os.environ.get("PORT", 8001))
 
 mcp = FastMCP(
     name="LegalForensics",
+    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
     instructions=(
         "Analyze contracts using LegalForensics AI. "
         "Use list_contracts to discover contract IDs, then pass the ID "
@@ -306,32 +308,7 @@ async def explain_clause(
 
 if __name__ == "__main__":
     import uvicorn
-    from starlette.middleware.trustedhost import TrustedHostMiddleware
-
     print(f"Starting LegalForensics MCP server on port {PORT}")
     print(f"LF API base: {LF_BASE_URL}")
-
     mcp.settings.port = PORT
-    app = mcp.streamable_http_app()
-
-    # Patch TrustedHostMiddleware to allow all hosts (needed for Render deployment)
-    def _patch_trusted_host(obj, depth=0):
-        if depth > 10:
-            return
-        if isinstance(obj, TrustedHostMiddleware):
-            obj.allowed_hosts = ["*"]
-            obj.allow_any = True
-            return
-        for attr in ("app", "middleware_stack"):
-            inner = getattr(obj, attr, None)
-            if inner and inner is not obj:
-                _patch_trusted_host(inner, depth + 1)
-
-    _patch_trusted_host(app)
-    # Also patch after middleware stack is built
-    try:
-        _patch_trusted_host(app.middleware_stack)
-    except Exception:
-        pass
-
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=PORT)
