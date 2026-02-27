@@ -6,7 +6,7 @@
   "homepage": "https://legalforensics.ai",
   "mcp_server": {
     "transport": "http",
-    "url": "https://lf-mcp.onrender.com/mcp"
+    "url": "https://lf-cowork-plugin.onrender.com/mcp"
   },
   "auth": {
     "type": "api_key",
