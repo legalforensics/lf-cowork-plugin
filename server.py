@@ -307,6 +307,5 @@ async def explain_clause(
 if __name__ == "__main__":
     print(f"Starting LegalForensics MCP server on port {PORT}")
     print(f"LF API base: {LF_BASE_URL}")
-    mcp.settings.host = "0.0.0.0"
     mcp.settings.port = PORT
     mcp.run(transport="streamable-http")
