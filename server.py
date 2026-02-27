@@ -304,23 +304,13 @@ async def explain_clause(
         return resp.json()
 
 
-class _HostFix:
-    """Rewrite Host header so FastMCP's TrustedHostMiddleware passes."""
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] in ("http", "websocket"):
-            headers = [(k, v) for k, v in scope.get("headers", []) if k != b"host"]
-            headers.append((b"host", b"0.0.0.0"))
-            scope = {**scope, "headers": headers}
-        await self.app(scope, receive, send)
-
-
 if __name__ == "__main__":
     import uvicorn
     print(f"Starting LegalForensics MCP server on port {PORT}")
     print(f"LF API base: {LF_BASE_URL}")
-    mcp.settings.host = "0.0.0.0"
+    # Set host="*" so TrustedHostMiddleware accepts all incoming host headers
+    mcp.settings.host = "*"
     mcp.settings.port = PORT
-    uvicorn.run(_HostFix(mcp.streamable_http_app()), host="0.0.0.0", port=PORT)
+    app = mcp.streamable_http_app()
+    # Bind uvicorn to 0.0.0.0 explicitly (not "*")
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
