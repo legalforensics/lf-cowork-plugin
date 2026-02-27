@@ -305,7 +305,11 @@ async def explain_clause(
 
 
 if __name__ == "__main__":
+    import uvicorn
     print(f"Starting LegalForensics MCP server on port {PORT}")
     print(f"LF API base: {LF_BASE_URL}")
-    mcp.settings.port = PORT
-    mcp.run(transport="streamable-http")
+    uvicorn.run(
+        mcp.streamable_http_app(),
+        host="0.0.0.0",
+        port=PORT,
+    )
