@@ -306,11 +306,32 @@ async def explain_clause(
 
 if __name__ == "__main__":
     import uvicorn
+    from starlette.middleware.trustedhost import TrustedHostMiddleware
+
     print(f"Starting LegalForensics MCP server on port {PORT}")
     print(f"LF API base: {LF_BASE_URL}")
-    # Set host="*" so TrustedHostMiddleware accepts all incoming host headers
-    mcp.settings.host = "*"
+
     mcp.settings.port = PORT
     app = mcp.streamable_http_app()
-    # Bind uvicorn to 0.0.0.0 explicitly (not "*")
+
+    # Patch TrustedHostMiddleware to allow all hosts (needed for Render deployment)
+    def _patch_trusted_host(obj, depth=0):
+        if depth > 10:
+            return
+        if isinstance(obj, TrustedHostMiddleware):
+            obj.allowed_hosts = ["*"]
+            obj.allow_any = True
+            return
+        for attr in ("app", "middleware_stack"):
+            inner = getattr(obj, attr, None)
+            if inner and inner is not obj:
+                _patch_trusted_host(inner, depth + 1)
+
+    _patch_trusted_host(app)
+    # Also patch after middleware stack is built
+    try:
+        _patch_trusted_host(app.middleware_stack)
+    except Exception:
+        pass
+
     uvicorn.run(app, host="0.0.0.0", port=PORT)
