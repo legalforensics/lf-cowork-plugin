@@ -5,7 +5,7 @@
   "author": "LegalForensics.AI",
   "homepage": "https://legalforensics.ai",
   "mcp_server": {
-    "transport": "http",
+    "transport": "streamable-http",
     "url": "https://lf-cowork-plugin.onrender.com/mcp"
   },
   "auth": {
