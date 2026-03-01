@@ -11,7 +11,7 @@
   "auth": {
     "type": "api_key",
     "header": "X-LF-API-Key",
-    "instructions": "Generate your API key at legalforensics.ai → Settings → API Keys, then paste it here."
+    "instructions": "Sign up at app.legalforensics.ai/plugin — your API key will be shown immediately after signup. Paste it here to connect."
   },
   "tools": [
     {
