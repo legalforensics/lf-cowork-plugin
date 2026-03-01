@@ -217,7 +217,35 @@ npx @modelcontextprotocol/inspector http://localhost:8001/mcp
 
 ## Submission Checklist (Anthropic Marketplace)
 
-- [ ] Update `plugin.json` auth instructions to point to `app.legalforensics.ai/plugin`
-- [x] Add `upload_contract` tool so plugin is self-contained
-- [ ] Test all 9 tools end-to-end with a real contract
+### plugin.json
+- [x] `auth.instructions` directs users to `app.legalforensics.ai/plugin`
+- [x] All 9 tools listed
+- [x] `mcp_server.url` points to live Render URL
+- [ ] `homepage` and `author` are final/accurate
+
+### User signup flow
+- [ ] `/plugin` page works end-to-end: signup → email verify → API key shown immediately
+- [ ] API key pasted into Claude plugin config works on first try
+
+### Tools — end-to-end with a real contract
+- [x] `upload_contract` — text paste (tested via Python MCP client)
+- [ ] `upload_contract` — URL
+- [x] `get_analysis_report` (tested via Python MCP client)
+- [x] `get_decision_guidance` (tested via Python MCP client)
+- [ ] `get_narrative_walkthrough`
+- [ ] `run_standards_review`
+- [ ] `get_clause_details`
+- [ ] `explain_clause`
+- [ ] `list_contracts`
+
+### Error handling
+- [ ] Bad API key → clear error message to user
+- [ ] Duplicate filename → clear error message
+- [ ] Unsupported file type → clear error message
+
+### Infrastructure
+- [ ] Render service on paid plan (starter+) — free tier sleeps after inactivity
+- [ ] Response times acceptable (< 3s for non-analysis tools)
+
+### Final step
 - [ ] Submit `plugin.json` to Anthropic via claude.ai/plugins
