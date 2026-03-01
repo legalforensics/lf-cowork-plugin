@@ -140,7 +140,7 @@ This opens a web UI where you can:
 
 ### Test the MCP endpoint directly with curl
 
-The MCP server uses streamable-http (SSE). **You must include `Accept: text/event-stream`** or the server returns a 406 error.
+The MCP server uses streamable-http (SSE). **You must include both `application/json` and `text/event-stream` in the `Accept` header** or the server returns a 406 error.
 
 ```bash
 # MCP endpoint
@@ -149,21 +149,21 @@ https://lf-cowork-plugin.onrender.com/mcp
 # List available tools
 curl -X POST https://lf-cowork-plugin.onrender.com/mcp \
   -H "Content-Type: application/json" \
-  -H "Accept: text/event-stream" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":1}'
 
 # Call upload_contract with pasted text
 curl -X POST https://lf-cowork-plugin.onrender.com/mcp \
   -H "X-LF-API-Key: lf_your_api_key_here" \
   -H "Content-Type: application/json" \
-  -H "Accept: text/event-stream" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"upload_contract","arguments":{"text_content":"This NDA binds both parties to confidentiality for 5 years.","title":"Test NDA"}},"id":1}'
 
 # Call upload_contract with a URL
 curl -X POST https://lf-cowork-plugin.onrender.com/mcp \
   -H "X-LF-API-Key: lf_your_api_key_here" \
   -H "Content-Type: application/json" \
-  -H "Accept: text/event-stream" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"upload_contract","arguments":{"file_url":"https://example.com/contract.pdf","title":"My Contract"}},"id":1}'
 ```
 
