@@ -6,7 +6,7 @@
   "homepage": "https://legalforensics.ai",
   "mcp_server": {
     "transport": "streamable-http",
-    "url": "https://lf-cowork-plugin.onrender.com/mcp"
+    "url": "https://lf-cowork-plugin.onrender.com"
   },
   "auth": {
     "type": "api_key",
@@ -45,6 +45,10 @@
     {
       "name": "explain_clause",
       "description": "Explain pasted clause text in plain English without uploading a contract."
+    },
+    {
+      "name": "upload_contract",
+      "description": "Upload a contract via URL or pasted text and get back a contract_id for analysis."
     }
   ]
 }
