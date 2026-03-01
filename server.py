@@ -1,7 +1,7 @@
 """
 LegalForensics MCP Server for Claude Cowork
 
-Exposes 8 tools that proxy to the LF REST API using an API key
+Exposes 9 tools that proxy to the LF REST API using an API key
 passed from the Cowork plugin configuration.
 
 Usage:
@@ -12,6 +12,7 @@ Cowork passes it to the MCP server via the X-LF-API-Key header (per plugin.json)
 The server extracts it from the request context and forwards it to the LF API.
 """
 
+import asyncio
 import os
 import httpx
 from mcp.server.fastmcp import FastMCP, Context
@@ -304,6 +305,132 @@ async def explain_clause(
         )
         resp.raise_for_status()
         return resp.json()
+
+
+# ---------------------------------------------------------------------------
+# Tool 9: Upload contract
+# ---------------------------------------------------------------------------
+def _infer_content_type(filename: str) -> str:
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    return {
+        "pdf": "application/pdf",
+        "doc": "application/msword",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "txt": "text/plain",
+    }.get(ext, "application/octet-stream")
+
+
+@mcp.tool()
+async def upload_contract(
+    ctx: Context,
+    file_url: str = "",
+    text_content: str = "",
+    title: str = "",
+    contract_type: str = "",
+) -> dict:
+    """
+    Upload a contract to LegalForensics and wait for it to finish processing.
+
+    Provide EITHER a URL to the contract file OR the raw contract text — not both.
+
+    After upload completes, returns the contract_id which you can pass directly
+    to get_analysis_report, get_decision_guidance, get_narrative_walkthrough, etc.
+
+    Args:
+        file_url: Direct download URL for the contract file (PDF, DOCX, DOC, TXT).
+                  Must be a publicly accessible URL that returns the file directly
+                  (e.g. a Dropbox ?dl=1 link, S3 pre-signed URL, or direct PDF URL).
+        text_content: Raw contract text to upload as a .txt file.
+                      Use this when the user pastes contract language into the chat.
+        title: Optional display title for the contract.
+        contract_type: Optional contract type override (e.g. "NDA", "SaaS Agreement").
+                       If omitted, LF will auto-classify the contract.
+    """
+    if not file_url and not text_content:
+        raise ValueError("Provide either file_url or text_content.")
+    if file_url and text_content:
+        raise ValueError("Provide only one of file_url or text_content, not both.")
+
+    api_key = _get_api_key(ctx)
+
+    # --- Resolve file bytes and filename ---
+    if file_url:
+        async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+            dl = await client.get(file_url)
+            dl.raise_for_status()
+            file_bytes = dl.content
+        # Strip query string to get a clean filename
+        raw_name = file_url.split("/")[-1].split("?")[0]
+        filename = raw_name if "." in raw_name else "contract.pdf"
+    else:
+        file_bytes = text_content.encode("utf-8")
+        slug = (title or "contract").replace(" ", "_")[:50]
+        filename = f"{slug}.txt"
+
+    content_type = _infer_content_type(filename)
+
+    # --- POST multipart to LF API ---
+    form_data: dict = {}
+    if title:
+        form_data["title"] = title
+    if contract_type:
+        form_data["contract_type"] = contract_type
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        resp = await client.post(
+            f"{LF_BASE_URL}/api/contracts/upload",
+            files={"file": (filename, file_bytes, content_type)},
+            data=form_data,
+            headers={"X-LF-API-Key": api_key},
+        )
+        resp.raise_for_status()
+        body = resp.json()
+
+    contract_uuid = body.get("contract_uuid")
+    if not contract_uuid:
+        return body  # unexpected sync response — surface it as-is
+
+    # --- Poll status until done (up to ~2 minutes) ---
+    poll_headers = {"X-LF-API-Key": api_key}
+    status_url = f"{LF_BASE_URL}/api/contracts/{contract_uuid}/status"
+
+    for attempt in range(40):  # 40 × 3 s = 2 min
+        await asyncio.sleep(3)
+        async with httpx.AsyncClient(timeout=30) as client:
+            try:
+                sr = await client.get(status_url, headers=poll_headers)
+                sr.raise_for_status()
+                status = sr.json()
+            except httpx.HTTPError:
+                continue  # transient network hiccup — keep polling
+
+        if status.get("status") == "completed":
+            return {
+                "contract_id": status.get("contract_id"),
+                "title": status.get("title"),
+                "contract_type": status.get("contract_type"),
+                "filename": status.get("filename"),
+                "risk_level": status.get("risk_level"),
+                "message": (
+                    "Contract uploaded and processed. "
+                    "Use the contract_id with get_analysis_report, "
+                    "get_decision_guidance, or get_narrative_walkthrough."
+                ),
+            }
+        if status.get("status") == "failed":
+            raise RuntimeError(
+                f"Contract processing failed: {status.get('error', 'unknown error')}"
+            )
+
+    # Processing is still running after 2 min — return the uuid so user can check later
+    return {
+        "status": "processing",
+        "contract_uuid": contract_uuid,
+        "message": (
+            "Upload accepted but processing is taking longer than expected. "
+            "Run list_contracts in a few minutes to find your contract once it completes."
+        ),
+    }
 
 
 if __name__ == "__main__":
