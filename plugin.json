@@ -3,7 +3,7 @@
   "description": "Contract risk analysis for SMBs and tech legal/finance teams. Analyze any MSA, NDA, or SOW — get risk posture, top risks, decision guidance, and plain-English summaries.",
   "version": "1.0.0",
   "author": "LegalForensics.AI",
-  "homepage": "https://legalforensics.ai",
+  "homepage": "https://app.legalforensics.ai/plugin",
   "mcp_server": {
     "transport": "streamable-http",
     "url": "https://lf-cowork-plugin.onrender.com"

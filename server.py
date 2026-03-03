@@ -310,6 +310,18 @@ async def explain_clause(
 # ---------------------------------------------------------------------------
 # Tool 9: Upload contract
 # ---------------------------------------------------------------------------
+async def _refund_credit(api_key: str) -> None:
+    """Best-effort credit refund — called when upload or processing fails."""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(
+                f"{LF_BASE_URL}/api/stripe/credits/refund",
+                headers=_lf_headers(api_key),
+            )
+    except Exception:
+        pass  # Logged server-side — don't mask the original error
+
+
 def _infer_content_type(filename: str) -> str:
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     return {
@@ -353,6 +365,34 @@ async def upload_contract(
 
     api_key = _get_api_key(ctx)
 
+    # --- Credit check: ensure user has credits before expensive processing ---
+    async with httpx.AsyncClient(timeout=10) as client:
+        credit_resp = await client.get(
+            f"{LF_BASE_URL}/api/stripe/credits",
+            headers=_lf_headers(api_key),
+        )
+        credit_resp.raise_for_status()
+        credits = credit_resp.json()
+        remaining = credits.get("credits_remaining", 0)
+
+    if remaining == 0:
+        checkout_url = None
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                checkout_resp = await client.post(
+                    f"{LF_BASE_URL}/api/stripe/create-checkout",
+                    headers=_lf_headers(api_key),
+                )
+                checkout_url = checkout_resp.json().get("url")
+        except Exception:
+            pass
+
+        msg = "No credits remaining to upload a contract.\n\n"
+        if checkout_url:
+            msg += f"Purchase a contract analysis credit here: {checkout_url}\n\n"
+        msg += "After payment, return here and retry."
+        raise ValueError(msg)
+
     # --- Resolve file bytes and filename ---
     if file_url:
         async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
@@ -369,6 +409,16 @@ async def upload_contract(
 
     content_type = _infer_content_type(filename)
 
+    # --- Deduct credit upfront (reserve before expensive processing) ---
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(
+                f"{LF_BASE_URL}/api/stripe/credits/deduct",
+                headers=_lf_headers(api_key),
+            )
+    except Exception as e:
+        raise RuntimeError(f"Failed to reserve credit before upload: {e}")
+
     # --- POST multipart to LF API ---
     form_data: dict = {}
     if title:
@@ -376,19 +426,26 @@ async def upload_contract(
     if contract_type:
         form_data["contract_type"] = contract_type
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(
-            f"{LF_BASE_URL}/api/contracts/upload",
-            files={"file": (filename, file_bytes, content_type)},
-            data=form_data,
-            headers={"X-LF-API-Key": api_key},
-        )
-        resp.raise_for_status()
-        body = resp.json()
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.post(
+                f"{LF_BASE_URL}/api/contracts/upload",
+                files={"file": (filename, file_bytes, content_type)},
+                data=form_data,
+                headers={"X-LF-API-Key": api_key},
+            )
+            resp.raise_for_status()
+            body = resp.json()
+    except Exception as e:
+        # Upload failed before processing started — refund the credit
+        await _refund_credit(api_key)
+        raise RuntimeError(f"Upload failed: {e}. Your credit has been refunded.")
 
     contract_uuid = body.get("contract_uuid")
     if not contract_uuid:
-        return body  # unexpected sync response — surface it as-is
+        # Unexpected sync response — refund and surface it
+        await _refund_credit(api_key)
+        return body
 
     # --- Poll status until done (up to ~2 minutes) ---
     poll_headers = {"X-LF-API-Key": api_key}
@@ -405,7 +462,7 @@ async def upload_contract(
                 continue  # transient network hiccup — keep polling
 
         if status.get("status") == "completed":
-            return {
+            result = {
                 "contract_id": status.get("contract_id"),
                 "title": status.get("title"),
                 "contract_type": status.get("contract_type"),
@@ -417,12 +474,24 @@ async def upload_contract(
                     "get_decision_guidance, or get_narrative_walkthrough."
                 ),
             }
+            # Warn when this was the last credit
+            if remaining == 1:
+                result["warning"] = (
+                    "This was your last credit. "
+                    "Purchase more at: https://app.legalforensics.ai/plugin"
+                )
+            return result
+
         if status.get("status") == "failed":
+            # Processing failed — refund the credit per policy
+            await _refund_credit(api_key)
             raise RuntimeError(
-                f"Contract processing failed: {status.get('error', 'unknown error')}"
+                f"Contract processing failed: {status.get('error', 'unknown error')}. "
+                "Your credit has been refunded."
             )
 
-    # Processing is still running after 2 min — return the uuid so user can check later
+    # Processing still running after 2 min — credit already deducted, no refund
+    # (contract may still complete in background)
     return {
         "status": "processing",
         "contract_uuid": contract_uuid,

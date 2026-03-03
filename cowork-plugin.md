@@ -6,6 +6,43 @@ The LegalForensics Cowork plugin connects Claude to the LegalForensics contract 
 
 ---
 
+## What's Remaining Before Marketplace Submission
+
+### Features to build
+- [ ] **Render upgrade** — upgrade MCP server to paid plan ($7/mo starter); free tier sleeps after inactivity which breaks the plugin
+
+### Deploy pending changes
+- [ ] **lf-nextgen-services** — commit + deploy refund endpoint (`POST /api/stripe/credits/refund`) on `stripe-bug-requirements` branch
+- [ ] **lf-cowork-plugin** — commit + deploy `server.py` (deduct-upfront + auto-refund) and `plugin.json` on `submission-prep` branch
+- [ ] **lf-nextgen-ui** — commit + deploy uncommitted changes on `stripe` branch: plugin-landing payment banner, decision-brief fix, nginx.conf no-cache rule for `index.html`
+
+### Testing to complete
+These are working features that need to be verified end-to-end:
+- [ ] **Stripe flow** — run the 6-step test sequence in the Testing section below
+- [ ] **Signup flow** — visit `/plugin`, sign up, verify email, copy API key, paste into Claude, confirm tools work
+- [ ] **`upload_contract` via URL** — test with a real direct-download PDF link
+- [ ] **`get_narrative_walkthrough`** — call with a real contract ID, verify response
+- [ ] **`run_standards_review`** — call with a real contract ID, verify response
+- [ ] **`get_clause_details`** — call with a real clause ID from an analysis report
+- [ ] **`explain_clause`** — paste a clause, verify plain-English explanation returned
+- [ ] **`list_contracts`** — verify returns list; test keyword filter
+- [ ] **Error cases** — bad API key returns clear message; unsupported file type returns clear message
+
+### Done ✅
+- Stripe integration — `plugin_credits` + `stripe_payments` tables, 4 endpoints, credit gate on `upload_contract`, 1 free credit on signup, last-credit warning, idempotent webhook
+- Auto-refund on failure — credit deducted upfront; auto-refunded if upload or processing fails; `POST /api/stripe/credits/refund` endpoint added to backend
+- `upload_contract` MCP tool — text paste and URL, polls until ready, returns `contract_id`
+- `.txt` file extraction fix in backend
+- Login page — SSO only for subscription users, no email/password confusion
+- `/plugin` landing page — separate signup flow for plugin users, payment success banner on return from Stripe
+- Plugin user isolation — each signup gets own company, `user_type` in DB
+- API key auth (`X-LF-API-Key`) wired end-to-end through MCP → backend
+- `get_analysis_report` and `get_decision_guidance` tested via Python MCP client
+- `plugin.json` — homepage set to `https://app.legalforensics.ai/plugin`
+- CloudFront caching fix — nginx `index.html` no-cache rule added; future deploys no longer need manual cache invalidation
+
+---
+
 ## User Journey
 
 ### 1. Discovery — Claude Marketplace
@@ -29,15 +66,6 @@ The LegalForensics Cowork plugin connects Claude to the LegalForensics contract 
 
 ---
 
-## Current Gap — Contract Upload
-
-**The plugin can only analyze contracts already uploaded via the LF dashboard.**
-
-The current flow has an extra step:
-> Sign up → get API key → **upload contract at LF dashboard** → return to Claude → analyze
-
-This breaks the seamless experience. The fix is an `upload_contract` MCP tool (see Roadmap below).
-
 ---
 
 ## User Types
@@ -50,7 +78,7 @@ This breaks the seamless experience. The fix is an `upload_contract` MCP tool (s
 | `user_type` in DB | `subscription` | `plugin` |
 | API key | Manual (via key icon in header) | Auto-created on signup |
 | Dashboard access | Full LF app | Optional (link at bottom of plugin page) |
-| Billing | LF subscription | Pay-per-contract via Stripe (planned) |
+| Billing | LF subscription | Pay-per-contract via Stripe |
 
 ---
 
@@ -107,20 +135,142 @@ On success returns `contract_id` — use it directly with any analysis tool in t
 
 ---
 
+## Stripe / Pricing
+
+### Pricing Q&A
+
+**Q: Should different contract types be priced differently?**
+Possible but creates complexity — multiple SKUs in Stripe, classification logic before charging, harder to explain to users. Start uniform. Can introduce tiering later once you know which contract types drive the most value.
+_Decision: uniform pricing for now_
+
+**Q: Will I get locked in to a price?**
+No. Stripe lets you change prices any time. Existing users on a purchase aren't affected (they already paid). New purchases use the new price. You can also run discount codes without changing the base price.
+_Decision: TBD_
+
+**Q: What to give free initially?**
+Standard approach: 1 free contract on signup. Enough to experience the full value, not enough to abuse. Can be implemented as 1 free credit added at registration.
+_Decision: TBD — 1 free contract on signup?_
+
+**Q: Can I use existing Stripe keys (pk_live for legalforensics-lite)?**
+Yes. Same Stripe account, same keys. Just create a new Product/Price for the plugin in the same Stripe dashboard. Keeps billing consolidated. Webhooks can be shared too (route by product).
+_Decision: yes, reuse existing Stripe account_
+
+**Q: Should I issue refunds?**
+Stripe makes refunds easy (one click in dashboard). Policy suggestion: refund if analysis fails or errors out, no refund if analysis completes even if user didn't like the result. Handle failed analyses automatically in the webhook/credit logic.
+_Decision: Yes — auto-refund if upload or processing fails. Credit deducted upfront; `POST /api/stripe/credits/refund` called automatically by MCP server on failure. Manual refunds (Stripe dashboard) for exceptional cases._
+
+**Q: What about discounts?**
+Stripe Checkout supports promo codes natively — just enable it on the Checkout session. No extra code needed. Good for launch outreach ("use code EARLYBIRD").
+_Decision: enable promo codes on Checkout_
+
+---
+
+**Questions still to answer**
+
+| Question | Answer |
+|---|---|
+| Who is the target plugin user? | Anyone — freelancer, writer, rental tenant, in-house counsel, lawyer, startup founder. Not optimised for all verticals yet but extensible. |
+| What would they pay a lawyer for the same insight? | Most individuals never go to a lawyer at all. Businesses go for some contracts, not others. Lawyers charge $500+/hr. So even $10-20 is a dramatic saving vs the alternative. |
+| What does one analysis cost you in LLM tokens/compute? | See cost estimate below — approx $0.15–0.30 per contract. |
+| One-time buyers or repeat customers? | Mix, but encourage repeat. Plugin subscriptions kept separate from LF subscriptions for now. |
+| Grow volume first or margin first at launch? | Volume first. |
+| Free tier permanently or just a launch promo? | Permanent free tier (1 contract). Strategy: expand to multiple plugins and build user base across them. |
+| Ever want a monthly unlimited plugin subscription? | Possibly — revisit later. |
+| When free credit runs out — hard wall or warning first? | Warning first — nobody likes being surprised. Show remaining credits and a heads-up before they hit zero. |
+| Price point per contract? | See pricing recommendation below. |
+
+---
+
+### Cost estimate per contract
+
+Assumes Claude Sonnet for analysis, average contract ~10 pages (~7,000 tokens).
+
+| Item | Tokens | Cost |
+|---|---|---|
+| Input per analysis call (contract + prompt) | ~8,000 | ~$0.024 |
+| Output per analysis call | ~1,500 | ~$0.023 |
+| Calls per contract (risk + decision + narrative) | 3 | × 3 |
+| LLM subtotal | | ~$0.14 |
+| S3 storage + Render compute overhead | | ~$0.05 |
+| **Total per contract** | | **~$0.20** |
+
+> Note: verify against actual AWS/Anthropic bills once volume picks up. Cost per contract drops as contracts get shorter or if only 1-2 tools are called.
+
+---
+
+### Pricing recommendation
+
+| Option | Price | Notes |
+|---|---|---|
+| Free | 1 contract | Permanent. Enough to experience full value. |
+| Single contract | $4.99 | ~25x cost margin. Low enough to be impulse-buy. |
+| 5-pack | $19 ($3.80 each) | Encourages repeat. ~10% discount vs single. |
+| 10-pack | $34 ($3.40 each) | Best value tier. ~30% discount vs single. |
+
+- Launch promo code (e.g. `EARLYBIRD`) for 50% off via Stripe discount — no code changes needed
+- Lawyers/in-house users will still find this very cheap vs $500+/hr alternative
+- Revisit if cost per contract turns out higher than estimated
+
+---
+
+**Who gets charged**
+- Plugin users (`user_type: "plugin"`) — yes
+- Subscription users (`user_type: "subscription"`) — no, fully bypassed
+
+---
+
+### What needs to be built
+
+**Stripe account**
+- [ ] Create Stripe account and get test + live API keys
+- [ ] Configure a Product + Price in Stripe dashboard
+
+**Backend — DB**
+- [ ] New table (e.g. `plugin_credits`): tracks paid credits per plugin user
+- [ ] Deduct 1 credit when gated tool succeeds
+
+**Backend — endpoints**
+- [ ] `POST /api/stripe/create-checkout` — creates Stripe Checkout session, returns URL
+- [ ] `POST /api/stripe/webhook` — receives payment confirmation from Stripe, adds credits to user
+- [ ] Webhook secret configured to verify requests are genuinely from Stripe
+
+**MCP tool changes**
+- [ ] Before running a gated tool, check if plugin user has credits
+- [ ] If no credits → return Checkout URL instead of running the tool
+- [ ] Claude surfaces the URL: "Purchase a contract credit here: [link]"
+- [ ] After payment → user retries tool → it runs normally
+
+**Testing**
+- [ ] Stripe test mode: card `4242 4242 4242 4242`, any future expiry, any CVC
+- [ ] Stripe CLI to forward webhooks to local: `stripe listen --forward-to localhost:8000/api/stripe/webhook`
+- [ ] Full flow testable locally with no real money
+
+**Infrastructure**
+- [ ] `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` added to Render env vars
+- [ ] Stripe webhook registered in Stripe dashboard pointing to live backend URL
+
+---
+
+### Edge cases to handle
+- Payment succeeds but Claude session ends before analysis — credits must live in DB, not in memory
+- Analysis fails after credit is deducted — define refund/retry policy
+- Duplicate webhook delivery — Stripe can send the same event twice, handle idempotently
+
+---
+
 ## Roadmap
 
 ### ~~Priority 1 — `upload_contract` MCP tool~~ ✅ Done
 Users can now upload contract text or a URL directly from Claude. Plugin is fully self-contained — no LF dashboard required.
 
-### Priority 2 — Stripe integration
+### ~~Priority 3 — Login page clarity~~ ✅ Done
+Subscription login page is SSO-only. Plugin users have their own `/plugin` landing page. No email/password confusion between the two user types.
+
+### Priority 2 — Stripe integration (in progress — `stripe` branch)
 - Plugin users (`user_type: "plugin"`) pay per contract processed
 - LF subscription users are unaffected
 - Gate MCP analysis tools behind a credit/payment check
 - Use Stripe Checkout for one-time payments or usage-based billing
-
-### Priority 3 — Email vs SSO clarity on login page
-- Login page should clearly separate the two paths
-- Plugin users always use email/password — no SSO confusion
 
 ---
 
@@ -191,6 +341,85 @@ curl -X POST https://app.legalforensics.ai/api/simplification/explain-clause \
 
 > **Note:** The MCP Inspector requires Node v22+. On Windows, install via [nvm-windows](https://github.com/coreybutler/nvm-windows) — standard `nvm` is not available on Windows. The inspector v0.9.0 (Node 20) only supports SSE transport which is incompatible with our streamable-http server.
 
+### Test Stripe credit flow
+
+#### Prerequisites
+1. Backend is running (EC2) with `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` set
+2. You have a plugin user's API key — either:
+   - Sign up at `https://app.legalforensics.ai/plugin` and copy the key shown at step 3, or
+   - Use an existing key from a user with `user_type = "plugin"` in the DB
+3. Replace `lf_your_api_key_here` with your actual key in every command below
+4. For webhook tests (steps 4–6): install [Stripe CLI](https://stripe.com/docs/stripe-cli) and run `stripe login`
+
+Run the steps **in order** — each step depends on the state left by the previous one.
+
+---
+
+#### 1. Check credit balance
+```bash
+curl -H "X-LF-API-Key: lf_your_api_key_here" \
+  https://app.legalforensics.ai/api/stripe/credits
+# Expected: {"credits_remaining": 1, "credits_used": 0}  (new plugin user gets 1 free)
+```
+
+#### 2. Trigger upload with credits (should succeed + warn)
+```bash
+# Upload a short contract as text — uses the 1 free credit
+curl -X POST https://lf-cowork-plugin.onrender.com/mcp \
+  -H "X-LF-API-Key: lf_your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"upload_contract","arguments":{"text_content":"This NDA binds both parties to confidentiality for 5 years.","title":"Credit Test NDA"}},"id":1}'
+# Expected: success + "warning": "This was your last credit..."
+```
+
+#### 3. Trigger upload with no credits (should return checkout URL)
+```bash
+# Run upload again — should block and return Stripe URL
+curl -X POST https://lf-cowork-plugin.onrender.com/mcp \
+  -H "X-LF-API-Key: lf_your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"upload_contract","arguments":{"text_content":"Test contract text","title":"No Credit Test"}},"id":2}'
+# Expected: ValueError with "Purchase a contract analysis credit here: https://checkout.stripe.com/..."
+```
+
+#### 4. Test Stripe webhook with Stripe CLI
+```bash
+# Install Stripe CLI: https://stripe.com/docs/stripe-cli
+# Forward webhooks to local backend:
+stripe listen --forward-to localhost:8000/api/stripe/webhook
+
+# In another terminal, trigger a test checkout.session.completed event:
+stripe trigger checkout.session.completed \
+  --override checkout_session:client_reference_id=<your_user_id> \
+  --override checkout_session:metadata.user_id=<your_user_id> \
+  --override checkout_session:metadata.company_id=<your_company_id> \
+  --override checkout_session:metadata.credits=1
+
+# Expected: credit balance increments by 1
+curl -H "X-LF-API-Key: lf_your_api_key_here" \
+  https://app.legalforensics.ai/api/stripe/credits
+# Expected: {"credits_remaining": 1, "credits_used": 1}
+```
+
+#### 5. Idempotency check (webhook sent twice)
+```bash
+# Send the same webhook event twice — credits should only increment once
+# Re-trigger same session ID — second call should be a no-op
+# Check credits_remaining hasn't doubled
+```
+
+#### 6. Full end-to-end with real Stripe test card
+1. Get checkout URL from step 3 above
+2. Open it in browser
+3. Use test card: `4242 4242 4242 4242`, any future date, any CVC
+4. Complete payment
+5. Stripe sends webhook → credits_remaining goes back to 1
+6. Retry upload → succeeds
+
+---
+
 ### Test against a local server
 
 ```bash
@@ -217,11 +446,21 @@ npx @modelcontextprotocol/inspector http://localhost:8001/mcp
 
 ## Submission Checklist (Anthropic Marketplace)
 
+### Remaining feature work
+- [x] Stripe integration — gate analysis tools behind payment for plugin users ✅
+- [x] Auto-refund on failure — credit deducted upfront, refunded if upload/processing fails ✅
+
 ### plugin.json
 - [x] `auth.instructions` directs users to `app.legalforensics.ai/plugin`
 - [x] All 9 tools listed
 - [x] `mcp_server.url` points to live Render URL
-- [ ] `homepage` and `author` are final/accurate
+- [x] `homepage` set to `https://app.legalforensics.ai/plugin` ✅
+- [x] `author` confirmed as `LegalForensics.AI` ✅
+
+### Deploy pending changes
+- [ ] lf-nextgen-services `stripe-bug-requirements` — commit + deploy refund endpoint to EC2
+- [ ] lf-cowork-plugin `submission-prep` — commit + deploy `server.py` + `plugin.json` to Render
+- [ ] lf-nextgen-ui `stripe` — commit + deploy plugin-landing, decision-brief fix, nginx.conf
 
 ### User signup flow
 - [ ] `/plugin` page works end-to-end: signup → email verify → API key shown immediately
@@ -229,7 +468,7 @@ npx @modelcontextprotocol/inspector http://localhost:8001/mcp
 
 ### Tools — end-to-end with a real contract
 - [x] `upload_contract` — text paste (tested via Python MCP client)
-- [ ] `upload_contract` — URL
+- [ ] `upload_contract` — URL (direct download link)
 - [x] `get_analysis_report` (tested via Python MCP client)
 - [x] `get_decision_guidance` (tested via Python MCP client)
 - [ ] `get_narrative_walkthrough`
@@ -244,7 +483,7 @@ npx @modelcontextprotocol/inspector http://localhost:8001/mcp
 - [ ] Unsupported file type → clear error message
 
 ### Infrastructure
-- [ ] Render service on paid plan (starter+) — free tier sleeps after inactivity
+- [ ] Render service upgraded to paid plan ($7/mo starter) — free tier sleeps after inactivity
 - [ ] Response times acceptable (< 3s for non-analysis tools)
 
 ### Final step
