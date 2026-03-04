@@ -432,9 +432,14 @@ async def upload_contract(
             dl = await client.get(file_url)
             dl.raise_for_status()
             file_bytes = dl.content
-        # Strip query string to get a clean filename
-        raw_name = file_url.split("/")[-1].split("?")[0]
-        filename = raw_name if "." in raw_name else "contract.pdf"
+        # Derive filename — for Google export URLs the path has no extension
+        import re as _re
+        fmt_match = _re.search(r"[?&]format=(\w+)", file_url)
+        if fmt_match:
+            filename = f"contract.{fmt_match.group(1)}"
+        else:
+            raw_name = file_url.split("/")[-1].split("?")[0]
+            filename = raw_name if "." in raw_name else "contract.pdf"
     else:
         file_bytes = text_content.encode("utf-8")
         slug = (title or "contract").replace(" ", "_")[:50]
