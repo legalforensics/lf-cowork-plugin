@@ -407,8 +407,17 @@ async def upload_contract(
                          - "IP Agreement" — IP / Software Licensing
                          - "Healthcare Procurement" — Medical supply and distribution
 
-                       Any other type (e.g. "Lease", "Employment Agreement", "Franchise Agreement")
-                       is accepted and processed with general contract analysis.
+                       Any other type is accepted and processed with general contract analysis
+                       (same risk posture, verdict, and renegotiation asks — just without
+                       type-specific clause patterns). Common examples:
+                         - "Lease" — commercial or residential
+                         - "Employment Agreement" — offer letters, employment contracts
+                         - "Consulting Agreement"
+                         - "Contractor Agreement" — freelancer / independent contractor
+                         - "Service Agreement"
+                         - "Distribution Agreement"
+                         - "Franchise Agreement"
+                         - "Partnership Agreement"
                        If you frequently need a specific type not listed above, let us know —
                        we prioritize specialized support based on demand.
 
