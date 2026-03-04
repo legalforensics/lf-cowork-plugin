@@ -17,6 +17,7 @@ import os
 import httpx
 from mcp.server.fastmcp import FastMCP, Context
 from mcp.server.fastmcp.server import TransportSecuritySettings
+from starlette.middleware.cors import CORSMiddleware
 
 LF_BASE_URL = os.environ.get("LF_BASE_URL", "https://app.legalforensics.ai").rstrip("/")
 PORT = int(os.environ.get("PORT", 8001))
@@ -507,4 +508,11 @@ if __name__ == "__main__":
     print(f"Starting LegalForensics MCP server on port {PORT}")
     print(f"LF API base: {LF_BASE_URL}")
     mcp.settings.port = PORT
-    uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=PORT)
+    app = mcp.streamable_http_app()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
