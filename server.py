@@ -397,8 +397,11 @@ async def upload_contract(
         text_content: Raw contract text to upload as a .txt file.
                       Use this when the user pastes contract language into the chat.
         title: Required display title for the contract (e.g. "Acme NDA 2026").
-        contract_type: Optional contract type override (e.g. "NDA", "SaaS Agreement").
-                       If omitted, LF will auto-classify the contract.
+        contract_type: Optional contract type hint. Supported types get the deepest analysis:
+                       "NDA", "MSA" (Master Services Agreement), "SOW" (Statement of Work),
+                       "DPA" (Data Processing Agreement), "IP Agreement", "Healthcare Procurement".
+                       Any other value (e.g. "Lease", "Employment Agreement") is accepted and
+                       processed as a general contract. If omitted, LF auto-classifies.
     """
     if not title or not title.strip():
         raise ValueError("title is required. Provide a short name for the contract (e.g. 'Acme NDA 2026').")
