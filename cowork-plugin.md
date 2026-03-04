@@ -17,16 +17,7 @@ The LegalForensics Cowork plugin connects Claude to the LegalForensics contract 
 - [ ] **lf-nextgen-ui** — commit + deploy uncommitted changes on `stripe` branch: plugin-landing payment banner, decision-brief fix, nginx.conf no-cache rule for `index.html`
 
 ### Testing to complete
-These are working features that need to be verified end-to-end:
-- [ ] **Stripe flow** — run the 6-step test sequence in the Testing section below
-- [ ] **Signup flow** — visit `/plugin`, sign up, verify email, copy API key, paste into Claude, confirm tools work
-- [ ] **`upload_contract` via URL** — test with a real direct-download PDF link
-- [ ] **`get_narrative_walkthrough`** — call with a real contract ID, verify response
-- [ ] **`run_standards_review`** — call with a real contract ID, verify response
-- [ ] **`get_clause_details`** — call with a real clause ID from an analysis report
-- [ ] **`explain_clause`** — paste a clause, verify plain-English explanation returned
-- [ ] **`list_contracts`** — verify returns list; test keyword filter
-- [ ] **Error cases** — bad API key returns clear message; unsupported file type returns clear message
+See the **Testing** section below for the full structured test plan.
 
 ### Done ✅
 - Stripe integration — `plugin_credits` + `stripe_payments` tables, 4 endpoints, credit gate on `upload_contract`, 1 free credit on signup, last-credit warning, idempotent webhook
@@ -315,162 +306,183 @@ Once the plugin is live in the marketplace, `app.legalforensics.ai` becomes prod
 
 ---
 
-## Testing the Plugin Locally
+## Testing
 
-### Test against the live Render server (recommended)
+### Setup
 
+**MCP Inspector (recommended)**
 ```bash
-cd C:\Users\amitn\repos\lf-cowork-plugin
 npx @modelcontextprotocol/inspector https://lf-cowork-plugin.onrender.com/mcp
 ```
+- Requires Node v22+ (Windows: use [nvm-windows](https://github.com/coreybutler/nvm-windows))
+- In the inspector UI: set `X-LF-API-Key` header with a real plugin user API key
+- Use **Via Proxy** mode — Direct mode has CORS issues with streamable-http
 
-This opens a web UI where you can:
-- Set the `X-LF-API-Key` header with a real API key
-- Call each tool individually and inspect the raw response
-- Simulate exactly what Claude Cowork does
-
-### Test the MCP endpoint directly with curl
-
-The MCP server uses streamable-http (SSE). **You must include both `application/json` and `text/event-stream` in the `Accept` header** or the server returns a 406 error.
-
+**Direct curl** (MCP must include both Accept headers)
 ```bash
-# MCP endpoint
-https://lf-cowork-plugin.onrender.com/mcp
-
-# List available tools
 curl -X POST https://lf-cowork-plugin.onrender.com/mcp \
+  -H "X-LF-API-Key: lf_your_key" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":1}'
-
-# Call upload_contract with pasted text
-curl -X POST https://lf-cowork-plugin.onrender.com/mcp \
-  -H "X-LF-API-Key: lf_your_api_key_here" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"upload_contract","arguments":{"text_content":"This NDA binds both parties to confidentiality for 5 years.","title":"Test NDA"}},"id":1}'
-
-# Call upload_contract with a URL
-curl -X POST https://lf-cowork-plugin.onrender.com/mcp \
-  -H "X-LF-API-Key: lf_your_api_key_here" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"upload_contract","arguments":{"file_url":"https://example.com/contract.pdf","title":"My Contract"}},"id":1}'
+  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"TOOL_NAME","arguments":{...}},"id":1}'
 ```
 
-### Alternative — Test LF API directly with curl
-
-The MCP tools are thin proxies over the LF API, so testing the API directly validates the same logic. Fastest option, no extra headers needed.
-
+**Local server**
 ```bash
-# list_contracts
-curl -H "X-LF-API-Key: lf_your_api_key_here" \
-  https://app.legalforensics.ai/api/contracts/my-contracts
-
-# upload_contract (text)
-curl -X POST https://app.legalforensics.ai/api/contracts/upload \
-  -H "X-LF-API-Key: lf_your_api_key_here" \
-  -F "file=@/path/to/contract.pdf" \
-  -F "title=Test Contract"
-
-# explain_clause (no upload needed — best for quick smoke test)
-curl -X POST https://app.legalforensics.ai/api/simplification/explain-clause \
-  -H "X-LF-API-Key: lf_your_api_key_here" \
-  -H "Content-Type: application/json" \
-  -d '{"clause_text": "Either party may terminate this agreement with 30 days written notice."}'
-```
-
-> **Note:** The MCP Inspector requires Node v22+. On Windows, install via [nvm-windows](https://github.com/coreybutler/nvm-windows) — standard `nvm` is not available on Windows. The inspector v0.9.0 (Node 20) only supports SSE transport which is incompatible with our streamable-http server.
-
-### Test Stripe credit flow
-
-#### Prerequisites
-1. Backend is running (EC2) with `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` set
-2. You have a plugin user's API key — either:
-   - Sign up at `https://app.legalforensics.ai/plugin` and copy the key shown at step 3, or
-   - Use an existing key from a user with `user_type = "plugin"` in the DB
-3. Replace `lf_your_api_key_here` with your actual key in every command below
-4. For webhook tests (steps 4–6): install [Stripe CLI](https://stripe.com/docs/stripe-cli) and run `stripe login`
-
-Run the steps **in order** — each step depends on the state left by the previous one.
-
----
-
-#### 1. Check credit balance
-```bash
-curl -H "X-LF-API-Key: lf_your_api_key_here" \
-  https://app.legalforensics.ai/api/stripe/credits
-# Expected: {"credits_remaining": 1, "credits_used": 0}  (new plugin user gets 1 free)
-```
-
-#### 2. Trigger upload with credits (should succeed + warn)
-```bash
-# Upload a short contract as text — uses the 1 free credit
-curl -X POST https://lf-cowork-plugin.onrender.com/mcp \
-  -H "X-LF-API-Key: lf_your_api_key_here" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"upload_contract","arguments":{"text_content":"This NDA binds both parties to confidentiality for 5 years.","title":"Credit Test NDA"}},"id":1}'
-# Expected: success + "warning": "This was your last credit..."
-```
-
-#### 3. Trigger upload with no credits (should return checkout URL)
-```bash
-# Run upload again — should block and return Stripe URL
-curl -X POST https://lf-cowork-plugin.onrender.com/mcp \
-  -H "X-LF-API-Key: lf_your_api_key_here" \
-  -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"upload_contract","arguments":{"text_content":"Test contract text","title":"No Credit Test"}},"id":2}'
-# Expected: ValueError with "Purchase a contract analysis credit here: https://checkout.stripe.com/..."
-```
-
-#### 4. Test Stripe webhook with Stripe CLI
-```bash
-# Install Stripe CLI: https://stripe.com/docs/stripe-cli
-# Forward webhooks to local backend:
-stripe listen --forward-to localhost:8000/api/stripe/webhook
-
-# In another terminal, trigger a test checkout.session.completed event:
-stripe trigger checkout.session.completed \
-  --override checkout_session:client_reference_id=<your_user_id> \
-  --override checkout_session:metadata.user_id=<your_user_id> \
-  --override checkout_session:metadata.company_id=<your_company_id> \
-  --override checkout_session:metadata.credits=1
-
-# Expected: credit balance increments by 1
-curl -H "X-LF-API-Key: lf_your_api_key_here" \
-  https://app.legalforensics.ai/api/stripe/credits
-# Expected: {"credits_remaining": 1, "credits_used": 1}
-```
-
-#### 5. Idempotency check (webhook sent twice)
-```bash
-# Send the same webhook event twice — credits should only increment once
-# Re-trigger same session ID — second call should be a no-op
-# Check credits_remaining hasn't doubled
-```
-
-#### 6. Full end-to-end with real Stripe test card
-1. Get checkout URL from step 3 above
-2. Open it in browser
-3. Use test card: `4242 4242 4242 4242`, any future date, any CVC
-4. Complete payment
-5. Stripe sends webhook → credits_remaining goes back to 1
-6. Retry upload → succeeds
-
----
-
-### Test against a local server
-
-```bash
-# Terminal 1 — start the plugin server locally
-cd C:\Users\amitn\repos\lf-cowork-plugin
+# Terminal 1
 python server.py
-
-# Terminal 2 — open the inspector
+# Terminal 2
 npx @modelcontextprotocol/inspector http://localhost:8001/mcp
 ```
+
+---
+
+### Test Plan
+
+> **How to use:** Run each test case, fill in Actual Result and set Status to Pass or Fail.
+
+#### A — Authentication
+
+| ID | Test Case | Steps | Expected Result | Actual Result | Status |
+|---|---|---|---|---|---|
+| A1 | Valid API key | Call `list_contracts` with a valid plugin user key | Returns contract list (empty or populated) | | |
+| A2 | Invalid API key | Call `list_contracts` with `lf_invalid123` | Clear error: "Invalid API key" or 401 | | |
+| A3 | Missing API key | Call `list_contracts` with no `X-LF-API-Key` header | Clear auth error | | |
+| A4 | Revoked API key | Revoke a key in the UI, then call `list_contracts` with it | Clear error: "Invalid API key" | | |
+
+---
+
+#### B — upload_contract
+
+| ID | Test Case | Steps | Expected Result | Actual Result | Status |
+|---|---|---|---|---|---|
+| B1 | Text paste (NDA) | `text_content` = short NDA text, `title` = "Test NDA" | Returns `contract_id`, status completed | | |
+| B2 | Google Doc URL | `file_url` = public Google Doc share link, `title` = "Google Doc NDA" | Converted to DOCX export, extracted, returns `contract_id` | | |
+| B3 | Direct PDF URL | `file_url` = public PDF URL, `title` = "PDF Contract" | Downloaded, extracted, returns `contract_id` | | |
+| B4 | Missing title | Call with `text_content` but no `title` | Error: "title is required" — before credit deducted | | |
+| B5 | Unsupported file type | `file_url` pointing to a `.zip` file | Error: "Unsupported file type" | | |
+| B6 | Duplicate filename | Upload same title twice | Second upload returns 409 Conflict with clear message | | |
+| B7 | No credits remaining | Upload with plugin user who has 0 credits | Error with Stripe checkout URL to purchase | | |
+| B8 | Last credit warning | Upload with plugin user who has exactly 1 credit | Success + `warning`: "This was your last credit..." | | |
+| B9 | Large contract (30+ pages) | Upload a 30+ page PDF or DOCX | Processes with 4min timeout, returns `large_contract_notice` in result | | |
+| B10 | Private Google Doc | `file_url` = Google Doc not shared publicly | Clear error: 401 Unauthorized — doc must be shared | | |
+| B11 | Text paste — empty | `text_content` = "" | Error before credit deducted | | |
+| B12 | Auto-refund on failure | Upload file that causes processing failure | Credit refunded, error message says "Your credit has been refunded" | | |
+
+---
+
+#### C — list_contracts
+
+| ID | Test Case | Steps | Expected Result | Actual Result | Status |
+|---|---|---|---|---|---|
+| C1 | List all contracts | Call `list_contracts` with no filter | Returns array of all contracts for the user | | |
+| C2 | Keyword filter — match | Call with `keyword` = word in a contract title | Returns only matching contracts | | |
+| C3 | Keyword filter — no match | Call with `keyword` = "xyznotexist" | Returns empty list, no error | | |
+| C4 | Empty account | Call with a brand new user with no contracts | Returns empty list, no error | | |
+
+---
+
+#### D — get_analysis_report
+
+| ID | Test Case | Steps | Expected Result | Actual Result | Status |
+|---|---|---|---|---|---|
+| D1 | Valid contract | Call with a processed `contract_id` | Returns full risk analysis: posture, risk items, exposure, decision guidance, disclaimer | | |
+| D2 | Cached response | Call `get_analysis_report` twice on same ID | Second call returns instantly (sub-second) | | |
+| D3 | Wrong contract ID | Call with `contract_id` = 99999 | Clear error: "Contract not found" | | |
+| D4 | Another user's contract | Call with a contract ID belonging to a different company | Clear error: "Contract not found or access denied" | | |
+
+---
+
+#### E — get_decision_guidance
+
+| ID | Test Case | Steps | Expected Result | Actual Result | Status |
+|---|---|---|---|---|---|
+| E1 | Valid contract | Call with a processed `contract_id` | Returns decision (sign/negotiate/walk away), reasoning, priority asks, disclaimer | | |
+| E2 | Wrong contract ID | Call with `contract_id` = 99999 | Clear error | | |
+
+---
+
+#### F — get_narrative_walkthrough
+
+| ID | Test Case | Steps | Expected Result | Actual Result | Status |
+|---|---|---|---|---|---|
+| F1 | Valid contract | Call with a processed `contract_id` | Returns plain-English narrative + disclaimer at end | | |
+| F2 | Wrong contract ID | Call with `contract_id` = 99999 | Clear error | | |
+
+---
+
+#### G — run_standards_review
+
+| ID | Test Case | Steps | Expected Result | Actual Result | Status |
+|---|---|---|---|---|---|
+| G1 | Valid contract | Call with a processed `contract_id` | Returns standards review result | | |
+| G2 | No playbook configured | Call with user who has no company playbook | Graceful response (no crash) | | |
+
+---
+
+#### H — get_clause_details
+
+| ID | Test Case | Steps | Expected Result | Actual Result | Status |
+|---|---|---|---|---|---|
+| H1 | Valid clause ID | Get a `clause_id` from `get_analysis_report` output, call `get_clause_details` | Returns clause risk factors, explanation, AI rewrite suggestion | | |
+| H2 | Invalid clause ID | Call with `clause_id` = 99999 | Clear error | | |
+
+---
+
+#### I — explain_clause
+
+| ID | Test Case | Steps | Expected Result | Actual Result | Status |
+|---|---|---|---|---|---|
+| I1 | Standard clause | `clause_text` = "Either party may terminate with 30 days written notice." | Plain-English explanation + risk assessment | | |
+| I2 | With context | Same clause + `contract_context` = "NDA, governed by California law" | More precise explanation using context | | |
+| I3 | Empty text | `clause_text` = "" | Clear error | | |
+| I4 | No credit needed | Call with a user who has 0 credits | Should succeed — explain_clause is free | | |
+
+---
+
+#### J — set_perspective
+
+| ID | Test Case | Steps | Expected Result | Actual Result | Status |
+|---|---|---|---|---|---|
+| J1 | Valid perspective | `contract_id` + `perspective` = "buyer" | Re-analysis from buyer's perspective, returned successfully | | |
+| J2 | All valid values | Test: buyer, seller, vendor, customer, licensor, licensee, employer, employee | Each returns analysis without error | | |
+| J3 | Invalid value | `perspective` = "alien" | Clear error listing valid values | | |
+
+---
+
+#### K — Stripe / Credits
+
+| ID | Test Case | Steps | Expected Result | Actual Result | Status |
+|---|---|---|---|---|---|
+| K1 | New plugin user credit | Sign up at `/plugin`, check credit balance | `credits_remaining: 1` | | |
+| K2 | Credit deducted on upload | Upload with 1 credit, check balance after | `credits_remaining: 0, credits_used: 1` | | |
+| K3 | No credits — checkout URL returned | Upload with 0 credits | Error message includes valid Stripe checkout URL | | |
+| K4 | Purchase via Stripe test card | Open checkout URL, use card `4242 4242 4242 4242` | Payment succeeds, `credits_remaining` increments by 1 | | |
+| K5 | Webhook idempotency | Trigger same `checkout.session.completed` event twice | Credit only added once | | |
+| K6 | Subscription user — no credit gate | Call `upload_contract` with subscription user key | Upload proceeds without credit check | | |
+| K7 | Refund on processing failure | Force a processing failure (bad file) | Credit refunded automatically, error message confirms | | |
+
+---
+
+#### L — Signup Flow
+
+| ID | Test Case | Steps | Expected Result | Actual Result | Status |
+|---|---|---|---|---|---|
+| L1 | Full signup flow | Visit `/plugin`, fill form, verify email, copy API key | API key shown immediately after email verification | | |
+| L2 | API key works in Claude | Paste key into Claude plugin config | `list_contracts` succeeds on first call | | |
+| L3 | Free credit on signup | Check credit balance immediately after signup | `credits_remaining: 1` | | |
+
+---
+
+#### M — Edge Cases
+
+| ID | Test Case | Steps | Expected Result | Actual Result | Status |
+|---|---|---|---|---|---|
+| M1 | Cold start (Render free tier) | Wait 15 min, then call any tool | First call may take 10-30s to wake up; subsequent calls fast | | |
+| M2 | Server wake via curl | `curl https://lf-cowork-plugin.onrender.com/health` | Returns 200, wakes server before user hits it | | |
+| M3 | Concurrent uploads | Upload two contracts simultaneously | Both complete successfully, no credit double-deduction | | |
+| M4 | 30+ page contract | Upload a real 30+ page agreement | Processes within 4 min, `large_contract_notice` in response | | |
+| M5 | Non-English contract | Upload a contract in French or Spanish | Processes without crashing; quality may vary | | |
 
 ---
 
@@ -503,25 +515,8 @@ npx @modelcontextprotocol/inspector http://localhost:8001/mcp
 - [x] lf-cowork-plugin — `server.py` + `plugin.json` deployed to Render ✅
 - [ ] lf-nextgen-ui `stripe` — commit + deploy plugin-landing, decision-brief fix, nginx.conf
 
-### User signup flow
-- [ ] `/plugin` page works end-to-end: signup → email verify → API key shown immediately
-- [ ] API key pasted into Claude plugin config works on first try
-
-### Tools — end-to-end with a real contract
-- [x] `upload_contract` — text paste (tested via Python MCP client)
-- [ ] `upload_contract` — URL (direct download link)
-- [x] `get_analysis_report` (tested via Python MCP client)
-- [x] `get_decision_guidance` (tested via Python MCP client)
-- [ ] `get_narrative_walkthrough`
-- [ ] `run_standards_review`
-- [ ] `get_clause_details`
-- [ ] `explain_clause`
-- [ ] `list_contracts`
-
-### Error handling
-- [ ] Bad API key → clear error message to user
-- [ ] Duplicate filename → clear error message
-- [ ] Unsupported file type → clear error message
+### Testing
+- [ ] All test cases in the Testing section pass (sections A–M)
 
 ### Infrastructure
 - [ ] Render service upgraded to paid plan ($7/mo starter) — free tier sleeps after inactivity
