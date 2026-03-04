@@ -1,6 +1,6 @@
 {
   "name": "LegalForensics",
-  "description": "AI-powered contract risk analysis for business users — before you sign. Upload any NDA, MSA, SOW, or other agreement and get instant risk posture, top risks with clause citations, a sign/negotiate/walk-away decision, and plain-English summaries. Built for founders, finance teams, and in-house counsel who need fast, actionable contract intelligence without a lawyer on call. Learn more at legalforensics.ai",
+  "description": "Know where you're exposed before you sign. Structured, decision-first contract review for business teams — no legal expertise required. Upload any NDA, MSA, SOW, or other agreement and get risk-ranked clause analysis, structural imbalances, specific renegotiation asks, and a clear verdict: sign, negotiate, or walk away. Built for procurement and business teams, not lawyers. Learn more at legalforensics.ai",
   "version": "1.0.0",
   "author": "LegalForensics.AI",
   "homepage": "https://app.legalforensics.ai/plugin",
