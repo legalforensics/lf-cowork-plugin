@@ -385,10 +385,12 @@ async def upload_contract(
                   paste the text content instead using text_content.
         text_content: Raw contract text to upload as a .txt file.
                       Use this when the user pastes contract language into the chat.
-        title: Optional display title for the contract.
+        title: Required display title for the contract (e.g. "Acme NDA 2026").
         contract_type: Optional contract type override (e.g. "NDA", "SaaS Agreement").
                        If omitted, LF will auto-classify the contract.
     """
+    if not title or not title.strip():
+        raise ValueError("title is required. Provide a short name for the contract (e.g. 'Acme NDA 2026').")
     if not file_url and not text_content:
         raise ValueError("Provide either file_url or text_content.")
     if file_url and text_content:
@@ -437,10 +439,7 @@ async def upload_contract(
         fmt_match = _re.search(r"[?&]format=(\w+)", file_url)
         if fmt_match:
             ext = fmt_match.group(1)
-            from datetime import datetime as _dt
-            ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-            base = (title or f"contract_{ts}").replace(" ", "_")[:50]
-            filename = f"{base}.{ext}"
+            filename = f"{title.replace(' ', '_')[:50]}.{ext}"
         else:
             raw_name = file_url.split("/")[-1].split("?")[0]
             filename = raw_name if "." in raw_name else "contract.pdf"
