@@ -86,7 +86,7 @@ async def list_contracts(ctx: Context, search: str = "") -> list[dict]:
             headers=_lf_headers(api_key),
         )
         resp.raise_for_status()
-        contracts = resp.json()
+        contracts = resp.json().get("contracts", [])
 
     if search:
         q = search.lower()
