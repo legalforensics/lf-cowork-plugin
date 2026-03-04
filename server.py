@@ -332,8 +332,12 @@ async def _refund_credit(api_key: str) -> None:
 
 
 def _normalize_file_url(url: str) -> str:
-    """Convert Google Drive share URLs to direct download URLs."""
+    """Convert Google Drive/Docs share URLs to direct download URLs."""
     import re
+    # https://docs.google.com/document/d/FILE_ID/edit...
+    m = re.search(r"docs\.google\.com/document/d/([a-zA-Z0-9_-]+)", url)
+    if m:
+        return f"https://docs.google.com/document/d/{m.group(1)}/export?format=docx"
     # https://drive.google.com/file/d/FILE_ID/view...
     m = re.search(r"drive\.google\.com/file/d/([a-zA-Z0-9_-]+)", url)
     if m:
@@ -402,6 +406,7 @@ async def upload_contract(
         credits = credit_resp.json()
         remaining = credits.get("credits_remaining", 0)
 
+    # remaining == -1 means subscription user (unlimited) — skip credit gate
     if remaining == 0:
         checkout_url = None
         try:
@@ -437,15 +442,17 @@ async def upload_contract(
 
     content_type = _infer_content_type(filename)
 
-    # --- Deduct credit upfront (reserve before expensive processing) ---
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            await client.post(
-                f"{LF_BASE_URL}/api/stripe/credits/deduct",
-                headers=_lf_headers(api_key),
-            )
-    except Exception as e:
-        raise RuntimeError(f"Failed to reserve credit before upload: {e}")
+    # --- Deduct credit upfront (skip for subscription users) ---
+    is_subscription = remaining == -1
+    if not is_subscription:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                await client.post(
+                    f"{LF_BASE_URL}/api/stripe/credits/deduct",
+                    headers=_lf_headers(api_key),
+                )
+        except Exception as e:
+            raise RuntimeError(f"Failed to reserve credit before upload: {e}")
 
     # --- POST multipart to LF API ---
     form_data: dict = {}
@@ -465,14 +472,14 @@ async def upload_contract(
             resp.raise_for_status()
             body = resp.json()
     except Exception as e:
-        # Upload failed before processing started — refund the credit
-        await _refund_credit(api_key)
-        raise RuntimeError(f"Upload failed: {e}. Your credit has been refunded.")
+        if not is_subscription:
+            await _refund_credit(api_key)
+        raise RuntimeError(f"Upload failed: {e}." + ("" if is_subscription else " Your credit has been refunded."))
 
     contract_uuid = body.get("contract_uuid")
     if not contract_uuid:
-        # Unexpected sync response — refund and surface it
-        await _refund_credit(api_key)
+        if not is_subscription:
+            await _refund_credit(api_key)
         return body
 
     # --- Poll status until done (up to ~2 minutes) ---
@@ -511,11 +518,11 @@ async def upload_contract(
             return result
 
         if status.get("status") == "failed":
-            # Processing failed — refund the credit per policy
-            await _refund_credit(api_key)
+            if not is_subscription:
+                await _refund_credit(api_key)
             raise RuntimeError(
-                f"Contract processing failed: {status.get('error', 'unknown error')}. "
-                "Your credit has been refunded."
+                f"Contract processing failed: {status.get('error', 'unknown error')}."
+                + ("" if is_subscription else " Your credit has been refunded.")
             )
 
     # Processing still running after 2 min — credit already deducted, no refund
