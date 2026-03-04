@@ -12,8 +12,8 @@ The LegalForensics Cowork plugin connects Claude to the LegalForensics contract 
 - [ ] **Render upgrade** — upgrade MCP server to paid plan ($7/mo starter); free tier sleeps after inactivity which breaks the plugin
 
 ### Deploy pending changes
-- [ ] **lf-nextgen-services** — commit + deploy refund endpoint (`POST /api/stripe/credits/refund`) on `stripe-bug-requirements` branch
-- [ ] **lf-cowork-plugin** — commit + deploy `server.py` (deduct-upfront + auto-refund) and `plugin.json` on `submission-prep` branch
+- [x] **lf-nextgen-services** — refund endpoint committed and deployed to EC2 ✅
+- [x] **lf-cowork-plugin** — `server.py` + `plugin.json` merged to `main` and deployed to Render ✅
 - [ ] **lf-nextgen-ui** — commit + deploy uncommitted changes on `stripe` branch: plugin-landing payment banner, decision-brief fix, nginx.conf no-cache rule for `index.html`
 
 ### Testing to complete
@@ -219,58 +219,46 @@ Assumes Claude Sonnet for analysis, average contract ~10 pages (~7,000 tokens).
 
 ---
 
-### What needs to be built
-
-**Stripe account**
-- [ ] Create Stripe account and get test + live API keys
-- [ ] Configure a Product + Price in Stripe dashboard
-
-**Backend — DB**
-- [ ] New table (e.g. `plugin_credits`): tracks paid credits per plugin user
-- [ ] Deduct 1 credit when gated tool succeeds
-
-**Backend — endpoints**
-- [ ] `POST /api/stripe/create-checkout` — creates Stripe Checkout session, returns URL
-- [ ] `POST /api/stripe/webhook` — receives payment confirmation from Stripe, adds credits to user
-- [ ] Webhook secret configured to verify requests are genuinely from Stripe
-
-**MCP tool changes**
-- [ ] Before running a gated tool, check if plugin user has credits
-- [ ] If no credits → return Checkout URL instead of running the tool
-- [ ] Claude surfaces the URL: "Purchase a contract credit here: [link]"
-- [ ] After payment → user retries tool → it runs normally
-
-**Testing**
-- [ ] Stripe test mode: card `4242 4242 4242 4242`, any future expiry, any CVC
-- [ ] Stripe CLI to forward webhooks to local: `stripe listen --forward-to localhost:8000/api/stripe/webhook`
-- [ ] Full flow testable locally with no real money
-
-**Infrastructure**
-- [ ] `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` added to Render env vars
-- [ ] Stripe webhook registered in Stripe dashboard pointing to live backend URL
-
----
-
-### Edge cases to handle
-- Payment succeeds but Claude session ends before analysis — credits must live in DB, not in memory
-- Analysis fails after credit is deducted — define refund/retry policy
-- Duplicate webhook delivery — Stripe can send the same event twice, handle idempotently
-
----
-
 ## Roadmap
 
 ### ~~Priority 1 — `upload_contract` MCP tool~~ ✅ Done
-Users can now upload contract text or a URL directly from Claude. Plugin is fully self-contained — no LF dashboard required.
-
+### ~~Priority 2 — Stripe integration~~ ✅ Done
 ### ~~Priority 3 — Login page clarity~~ ✅ Done
-Subscription login page is SSO-only. Plugin users have their own `/plugin` landing page. No email/password confusion between the two user types.
 
-### Priority 2 — Stripe integration (in progress — `stripe` branch)
-- Plugin users (`user_type: "plugin"`) pay per contract processed
-- LF subscription users are unaffected
-- Gate MCP analysis tools behind a credit/payment check
-- Use Stripe Checkout for one-time payments or usage-based billing
+---
+
+## Production Stability
+
+Once the plugin is live in the marketplace, `app.legalforensics.ai` becomes production infrastructure. Users will depend on it.
+
+### Key risks
+| Risk | Impact | Mitigation |
+|---|---|---|
+| EC2 goes down overnight | All plugin tools fail | UptimeRobot alert on `/health` endpoint |
+| Deploy causes ~30s downtime | In-flight requests fail | Deploy during off-peak hours |
+| Backend API endpoint renamed/removed | Plugin breaks for all users | Don't change the 5 endpoints the plugin calls without a coordinated plugin update |
+| Schema change breaks DB | Backend crash | Test on dev before merging to EC2 |
+
+### Endpoints the plugin depends on (do not break)
+- `GET /api/contracts/my-contracts`
+- `POST /api/contracts/upload`
+- `GET /api/contracts/{id}/status`
+- `GET /api/contracts/{id}/analysis-report`
+- `GET /api/contracts/{id}/decision-guidance`
+- `GET /api/contracts/{id}/narrative-walkthrough`
+- `GET /api/stripe/credits`
+- `POST /api/stripe/credits/deduct`
+- `POST /api/stripe/credits/refund`
+
+### Monitoring
+- **UptimeRobot** (free) — monitors `https://app.legalforensics.ai/health` every 5 min, alerts via email/SMS
+  - Sign up at [uptimerobot.com](https://uptimerobot.com), add HTTP monitor, paste the health URL
+- **Render dashboard** — Render paid plan shows MCP server uptime and logs
+
+### Deploy discipline
+- Backend changes: merge to `dev` → test on EC2 → PR to `main` for production
+- Plugin changes: push to `main` on `lf-cowork-plugin` → Render auto-deploys
+- Avoid deploying both at the same time
 
 ---
 
@@ -458,8 +446,8 @@ npx @modelcontextprotocol/inspector http://localhost:8001/mcp
 - [x] `author` confirmed as `LegalForensics.AI` ✅
 
 ### Deploy pending changes
-- [ ] lf-nextgen-services `stripe-bug-requirements` — commit + deploy refund endpoint to EC2
-- [ ] lf-cowork-plugin `submission-prep` — commit + deploy `server.py` + `plugin.json` to Render
+- [x] lf-nextgen-services — refund endpoint deployed to EC2 ✅
+- [x] lf-cowork-plugin — `server.py` + `plugin.json` deployed to Render ✅
 - [ ] lf-nextgen-ui `stripe` — commit + deploy plugin-landing, decision-brief fix, nginx.conf
 
 ### User signup flow
@@ -485,6 +473,13 @@ npx @modelcontextprotocol/inspector http://localhost:8001/mcp
 ### Infrastructure
 - [ ] Render service upgraded to paid plan ($7/mo starter) — free tier sleeps after inactivity
 - [ ] Response times acceptable (< 3s for non-analysis tools)
+- [ ] UptimeRobot monitoring set up on `https://app.legalforensics.ai/health` (free, alerts via email/SMS if EC2 goes down)
 
 ### Final step
-- [ ] Submit `plugin.json` to Anthropic via claude.ai/plugins
+- [ ] Submit `plugin.json` to Anthropic:
+  1. Go to **claude.ai/plugins**
+  2. Click **Submit a plugin**
+  3. Upload or paste `plugin.json`
+  4. Anthropic reviews the manifest and tests the live MCP server URL
+  5. Approval notification sent by email — no fixed SLA but typically days not weeks
+  6. After approval, plugin appears in Claude marketplace under your name
