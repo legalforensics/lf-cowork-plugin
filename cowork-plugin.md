@@ -227,6 +227,45 @@ Assumes Claude Sonnet for analysis, average contract ~10 pages (~7,000 tokens).
 
 ---
 
+## Large Contract Handling
+
+### Background
+Long contracts (30+ pages) originally took 10+ minutes to process. A series of optimizations brought this down significantly:
+
+| Optimization | Impact |
+|---|---|
+| FieldExtraction chunking (20,000 char threshold) | Head + key sections + tail sent to LLM instead of full text |
+| Classification + SectionExtraction run in parallel | Saved ~1-2s per upload |
+| FieldExtraction + FastRiskAssessment run in parallel | Saves ~5-15s for long contracts |
+| Analysis report cached in DB after first generation | Subsequent `get_analysis_report` calls are sub-millisecond |
+| Fire-and-forget pre-generation after upload | Report is ready by the time user calls `get_analysis_report` |
+
+### Current pipeline (post-optimization)
+```
+FileValidation
+    → DocumentExtraction (Textract, ~2-5s)
+        → [PARALLEL] Classification + SectionExtraction (~1-2s)
+            → [PARALLEL] FieldExtraction + FastRiskAssessment (~5-15s, was sequential)
+                → MetadataResolution
+                    → DatabaseSave
+                        → [FIRE-AND-FORGET] Analysis pre-generation (cached for instant retrieval)
+```
+
+### Remaining limitations
+- **FastRiskAssessment** still does full-text pattern scan (no truncation) — main bottleneck for very long contracts
+- **Analysis report** truncates at 12,000 chars for the LLM call — may miss clauses in 40+ page contracts
+- **Quality**: contracts over ~30 pages may have reduced clause-level detail due to LLM context limits
+
+### MCP plugin handling
+- Contracts >500KB get a 4-minute poll window instead of 2 minutes
+- Success response includes `large_contract_notice` advising users to use `explain_clause` for specific sections
+- Timeout message explicitly tells users to check back via `list_contracts`
+
+### Roadmap
+Full long-contract support (multi-pass chunked analysis, per-section risk aggregation) is planned. Prioritized based on user demand — track requests via support.
+
+---
+
 ## Known Limitations
 
 | Limitation | Detail | Workaround |
