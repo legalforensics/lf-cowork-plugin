@@ -22,6 +22,12 @@ from starlette.middleware.cors import CORSMiddleware
 LF_BASE_URL = os.environ.get("LF_BASE_URL", "https://app.legalforensics.ai").rstrip("/")
 PORT = int(os.environ.get("PORT", 8001))
 
+DISCLAIMER = (
+    "⚠️ AI-generated analysis. For informational purposes only — not legal advice. "
+    "Consult qualified legal counsel before signing or acting on any contract. "
+    "User Agreement: https://app.legalforensics.ai/assets/docs/user-agreement.pdf"
+)
+
 mcp = FastMCP(
     name="LegalForensics",
     transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
@@ -130,7 +136,9 @@ async def get_analysis_report(ctx: Context, contract_id: int) -> dict:
             headers=_lf_headers(api_key),
         )
         resp.raise_for_status()
-        return resp.json()
+        result = resp.json()
+        result["disclaimer"] = DISCLAIMER
+        return result
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +162,9 @@ async def get_decision_guidance(ctx: Context, contract_id: int) -> dict:
             headers=_lf_headers(api_key),
         )
         resp.raise_for_status()
-        return resp.json()
+        result = resp.json()
+        result["disclaimer"] = DISCLAIMER
+        return result
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +189,8 @@ async def get_narrative_walkthrough(ctx: Context, contract_id: int) -> str:
         )
         resp.raise_for_status()
         data = resp.json()
-        return data.get("narrative") or str(data)
+        narrative = data.get("narrative") or str(data)
+        return f"{narrative}\n\n---\n{DISCLAIMER}"
 
 
 # ---------------------------------------------------------------------------
