@@ -515,11 +515,19 @@ async def upload_contract(
             await _refund_credit(api_key)
         return body
 
-    # --- Poll status until done (up to ~2 minutes) ---
+    # --- Poll status until done ---
+    # Large contracts (>500 KB) get extended timeout (4 min); standard is 2 min.
+    # Note: contracts over ~30 pages may have reduced analysis quality due to
+    # LLM context limits — best results are on contracts up to ~20 pages.
+    _large_contract = len(file_bytes) > 500_000
+    _poll_attempts = 80 if _large_contract else 40  # 80×3s=4min, 40×3s=2min
+    if _large_contract:
+        pass  # warning surfaced in result below
+
     poll_headers = {"X-LF-API-Key": api_key}
     status_url = f"{LF_BASE_URL}/api/contracts/{contract_uuid}/status"
 
-    for attempt in range(40):  # 40 × 3 s = 2 min
+    for attempt in range(_poll_attempts):  # 3s per attempt
         await asyncio.sleep(3)
         async with httpx.AsyncClient(timeout=30) as client:
             try:
@@ -542,6 +550,14 @@ async def upload_contract(
                     "get_decision_guidance, or get_narrative_walkthrough."
                 ),
             }
+            # Warn for large contracts (quality may be reduced)
+            if _large_contract:
+                result["large_contract_notice"] = (
+                    "This contract is large (30+ pages). Analysis covers the full document "
+                    "but very long contracts may have reduced clause-level detail due to "
+                    "AI context limits. For best results, analyze key sections separately "
+                    "using explain_clause or get_clause_details."
+                )
             # Warn when this was the last credit
             if remaining == 1:
                 result["warning"] = (
@@ -558,14 +574,16 @@ async def upload_contract(
                 + ("" if is_subscription else " Your credit has been refunded.")
             )
 
-    # Processing still running after 2 min — credit already deducted, no refund
+    # Processing still running after timeout — credit already deducted, no refund
     # (contract may still complete in background)
     return {
         "status": "processing",
         "contract_uuid": contract_uuid,
         "message": (
-            "Upload accepted but processing is taking longer than expected. "
-            "Run list_contracts in a few minutes to find your contract once it completes."
+            "Upload accepted but processing is taking longer than expected "
+            + ("(large contracts can take 3–5 minutes). " if _large_contract else ". ")
+            + "Run list_contracts in a few minutes to find your contract, "
+            "then call get_analysis_report with the contract_id."
         ),
     }
 

@@ -227,6 +227,20 @@ Assumes Claude Sonnet for analysis, average contract ~10 pages (~7,000 tokens).
 
 ---
 
+## Known Limitations
+
+| Limitation | Detail | Workaround |
+|---|---|---|
+| Long contracts (30+ pages) | Analysis may miss clauses due to LLM context limits; processing takes longer | Use `explain_clause` or `get_clause_details` to analyze specific sections |
+| Processing timeout | Contracts taking >4 min return a "still processing" message — credit is NOT refunded | Call `list_contracts` after a few minutes, then `get_analysis_report` with the ID |
+| Local files | Cannot upload files from your computer via `file_url` | Paste text via `text_content`, or share via Google Drive / Dropbox |
+| Google Docs | Must be shared as "Anyone with the link" | Change sharing settings before uploading |
+| Classification confidence | Some niche contract types may not get specialized analysis | Pass `contract_type` explicitly; unsupported types are processed as general contracts |
+
+> **Roadmap:** Long contract support (chunking + multi-pass analysis) is prioritized based on demand. If you regularly work with 30+ page agreements, contact us.
+
+---
+
 ## Production Stability
 
 Once the plugin is live in the marketplace, `app.legalforensics.ai` becomes production infrastructure. Users will depend on it.
