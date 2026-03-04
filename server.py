@@ -229,11 +229,19 @@ async def set_perspective(
     Re-analyze a contract from a specific negotiating perspective.
 
     Changes which party's interests the AI prioritizes when assessing risk
-    and recommending changes.
+    and recommending changes. Ask the user which role they are playing in
+    the contract and map it to the closest option below.
 
     Args:
         contract_id: LF contract ID.
-        perspective: One of: buyer, seller, licensor, licensee, vendor, customer, neutral.
+        perspective: The user's role in the contract. Must be one of:
+            - buyer: purchasing goods or services
+            - seller: providing goods or services
+            - licensor: granting a license or IP rights
+            - licensee: receiving a license or IP rights
+            - vendor: supplying a product or platform
+            - customer: receiving a product or service
+            - neutral: no specific side (balanced analysis)
     """
     valid = {"buyer", "seller", "licensor", "licensee", "vendor", "customer", "neutral"}
     if perspective.lower() not in valid:
@@ -323,6 +331,20 @@ async def _refund_credit(api_key: str) -> None:
         pass  # Logged server-side — don't mask the original error
 
 
+def _normalize_file_url(url: str) -> str:
+    """Convert Google Drive share URLs to direct download URLs."""
+    import re
+    # https://drive.google.com/file/d/FILE_ID/view...
+    m = re.search(r"drive\.google\.com/file/d/([a-zA-Z0-9_-]+)", url)
+    if m:
+        return f"https://drive.google.com/uc?export=download&id={m.group(1)}"
+    # https://drive.google.com/open?id=FILE_ID
+    m = re.search(r"drive\.google\.com/open\?id=([a-zA-Z0-9_-]+)", url)
+    if m:
+        return f"https://drive.google.com/uc?export=download&id={m.group(1)}"
+    return url
+
+
 def _infer_content_type(filename: str) -> str:
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     return {
@@ -350,9 +372,13 @@ async def upload_contract(
     to get_analysis_report, get_decision_guidance, get_narrative_walkthrough, etc.
 
     Args:
-        file_url: Direct download URL for the contract file (PDF, DOCX, DOC, TXT).
-                  Must be a publicly accessible URL that returns the file directly
-                  (e.g. a Dropbox ?dl=1 link, S3 pre-signed URL, or direct PDF URL).
+        file_url: URL to the contract file (PDF, DOCX, DOC, TXT). Supported sources:
+                  - Google Drive share link (e.g. https://drive.google.com/file/d/FILE_ID/view)
+                    — automatically converted to a direct download URL.
+                  - Dropbox link with ?dl=1 parameter.
+                  - Any direct public download URL (S3 pre-signed, direct PDF link, etc).
+                  Note: local files on your computer cannot be uploaded via URL —
+                  paste the text content instead using text_content.
         text_content: Raw contract text to upload as a .txt file.
                       Use this when the user pastes contract language into the chat.
         title: Optional display title for the contract.
@@ -396,6 +422,7 @@ async def upload_contract(
 
     # --- Resolve file bytes and filename ---
     if file_url:
+        file_url = _normalize_file_url(file_url)
         async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
             dl = await client.get(file_url)
             dl.raise_for_status()
