@@ -436,7 +436,9 @@ async def upload_contract(
         import re as _re
         fmt_match = _re.search(r"[?&]format=(\w+)", file_url)
         if fmt_match:
-            filename = f"contract.{fmt_match.group(1)}"
+            ext = fmt_match.group(1)
+            base = (title or "contract").replace(" ", "_")[:50]
+            filename = f"{base}.{ext}"
         else:
             raw_name = file_url.split("/")[-1].split("?")[0]
             filename = raw_name if "." in raw_name else "contract.pdf"
