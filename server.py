@@ -437,7 +437,9 @@ async def upload_contract(
         fmt_match = _re.search(r"[?&]format=(\w+)", file_url)
         if fmt_match:
             ext = fmt_match.group(1)
-            base = (title or "contract").replace(" ", "_")[:50]
+            from datetime import datetime as _dt
+            ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+            base = (title or f"contract_{ts}").replace(" ", "_")[:50]
             filename = f"{base}.{ext}"
         else:
             raw_name = file_url.split("/")[-1].split("?")[0]
