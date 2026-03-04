@@ -1,6 +1,6 @@
 {
   "name": "LegalForensics",
-  "description": "Know where you're exposed before you sign. Structured, decision-first contract review for business teams — no legal expertise required. Upload any NDA, MSA, SOW, or other agreement and get risk-ranked clause analysis, structural imbalances, specific renegotiation asks, and a clear verdict: sign, negotiate, or walk away. Built for procurement and business teams, not lawyers. Learn more at legalforensics.ai",
+  "description": "Know where you're exposed before you sign. Decision-first contract review for business teams — no legal expertise required. Works on any business contract — NDAs, MSAs, SOWs, lease, employment, consulting, contractor, service, distribution, franchise, and partnership agreements. Specialized depth for tech and healthcare agreements. Get risk-ranked clause analysis, structural imbalances, specific renegotiation asks, and a clear verdict: sign, negotiate, or walk away. Built for procurement and business teams, not lawyers. Learn more at legalforensics.ai",
   "version": "1.0.0",
   "author": "LegalForensics.AI",
   "homepage": "https://app.legalforensics.ai/plugin",
