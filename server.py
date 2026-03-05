@@ -116,7 +116,49 @@ async def list_contracts(ctx: Context, search: str = "") -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Tool 2: Analysis report
+# Tool 2: Credits
+# ---------------------------------------------------------------------------
+@mcp.tool()
+async def get_credits(ctx: Context) -> dict:
+    """
+    Check your LegalForensics credit balance.
+
+    Each contract upload costs 1 credit. Subscription users have unlimited uploads.
+    Returns credits remaining, credits used, and a purchase link if balance is zero.
+    """
+    api_key = _get_api_key(ctx)
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(
+            f"{LF_BASE_URL}/api/stripe/credits",
+            headers=_lf_headers(api_key),
+        )
+        resp.raise_for_status()
+        credits = resp.json()
+
+    remaining = credits.get("credits_remaining", 0)
+
+    if credits.get("subscription_user"):
+        return {"plan": "subscription", "uploads": "unlimited"}
+
+    result: dict = {
+        "credits_remaining": remaining,
+        "credits_used": credits.get("credits_used", 0),
+    }
+
+    if remaining == 0:
+        checkout_url = await _get_checkout_url(api_key)
+        result["message"] = "No credits remaining."
+        if checkout_url:
+            result["purchase_url"] = checkout_url
+            result["message"] += f" Purchase more at: {checkout_url}"
+    else:
+        result["message"] = f"You have {remaining} credit{'s' if remaining != 1 else ''} remaining."
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Tool 3: Analysis report
 # ---------------------------------------------------------------------------
 @mcp.tool()
 async def get_risk_analysis(ctx: Context, contract_id: int) -> dict:
@@ -296,6 +338,19 @@ async def explain_clause(
 # ---------------------------------------------------------------------------
 # Tool 9: Upload contract
 # ---------------------------------------------------------------------------
+async def _get_checkout_url(api_key: str) -> str | None:
+    """Best-effort Stripe checkout URL fetch."""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                f"{LF_BASE_URL}/api/stripe/create-checkout",
+                headers=_lf_headers(api_key),
+            )
+            return resp.json().get("url")
+    except Exception:
+        return None
+
+
 async def _refund_credit(api_key: str) -> None:
     """Best-effort credit refund — called when upload or processing fails."""
     try:
@@ -404,21 +459,13 @@ async def upload_contract(
 
     # remaining == -1 means subscription user (unlimited) — skip credit gate
     if remaining == 0:
-        checkout_url = None
-        try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                checkout_resp = await client.post(
-                    f"{LF_BASE_URL}/api/stripe/create-checkout",
-                    headers=_lf_headers(api_key),
-                )
-                checkout_url = checkout_resp.json().get("url")
-        except Exception:
-            pass
-
-        msg = "No credits remaining to upload a contract.\n\n"
+        checkout_url = await _get_checkout_url(api_key)
+        msg = "You have no credits remaining.\n\n"
         if checkout_url:
-            msg += f"Purchase a contract analysis credit here: {checkout_url}\n\n"
-        msg += "After payment, return here and retry."
+            msg += f"👉 Purchase a credit: {checkout_url}\n\n"
+        else:
+            msg += "Visit https://app.legalforensics.ai/plugin to purchase credits.\n\n"
+        msg += "Once payment is complete, come back and retry the upload."
         raise ValueError(msg)
 
     # --- Resolve file bytes and filename ---

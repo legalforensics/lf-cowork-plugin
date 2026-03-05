@@ -20,6 +20,10 @@
       "description": "List all contracts in your LF account, optionally filtered by keyword."
     },
     {
+      "name": "get_credits",
+      "description": "Check your credit balance. Returns credits remaining and a purchase link if balance is zero."
+    },
+    {
       "name": "get_risk_analysis",
       "description": "Full AI risk analysis: risk posture, top risks, exposure bands, next steps."
     },
