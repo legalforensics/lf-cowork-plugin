@@ -10,7 +10,7 @@ Get a plain-English narrative walkthrough of a contract.
 
 ## What it does
 
-Calls `get_narrative_walkthrough` and presents a flowing, readable analysis:
+Calls `explain_contract` and presents a flowing, readable analysis:
 - What the contract does in plain English
 - Who holds the risk at each stage
 - What breaks if things go wrong

@@ -28,7 +28,7 @@ See the **Testing** section below for the full structured test plan.
 - `/plugin` landing page — separate signup flow for plugin users, payment success banner on return from Stripe
 - Plugin user isolation — each signup gets own company, `user_type` in DB
 - API key auth (`X-LF-API-Key`) wired end-to-end through MCP → backend
-- `get_analysis_report` and `get_decision_guidance` tested via Python MCP client
+- `get_risk_analysis` and `get_verdict` tested via Python MCP client
 - `plugin.json` — homepage set to `https://app.legalforensics.ai/plugin`
 - CloudFront caching fix — nginx `index.html` no-cache rule added; future deploys no longer need manual cache invalidation
 
@@ -52,7 +52,7 @@ See the **Testing** section below for the full structured test plan.
 
 ### 3. Using the Plugin in Claude
 - User asks Claude to analyze a contract
-- Claude calls the MCP tools: `list_contracts` → `get_analysis_report` etc.
+- Claude calls the MCP tools: `list_contracts` → `get_risk_analysis` etc.
 - Results appear inline in the conversation
 
 ---
@@ -99,10 +99,10 @@ Claude (Cowork) → MCP server (Render) → X-LF-API-Key header → LF backend �
 | Tool | Description |
 |---|---|
 | `list_contracts` | List all contracts, optionally filtered by keyword |
-| `get_analysis_report` | Full AI risk analysis: posture, top risks, exposure bands |
-| `get_decision_guidance` | Decision brief: sign, negotiate, or walk away |
-| `get_narrative_walkthrough` | Plain-English explanation of the contract |
-| `run_standards_review` | Check against company negotiation playbook |
+| `get_risk_analysis` | Full AI risk analysis: posture, top risks, exposure bands |
+| `get_verdict` | Decision brief: sign, negotiate, or walk away |
+| `explain_contract` | Plain-English explanation of the contract |
+| `[removed]` | Check against company negotiation playbook |
 | `set_perspective` | Re-analyze from a specific party's perspective |
 | `get_clause_details` | Deep dive on a single clause with AI rewrite |
 | `explain_clause` | Analyze pasted clause text without uploading a contract |
@@ -228,8 +228,8 @@ Long contracts (30+ pages) originally took 10+ minutes to process. A series of o
 | FieldExtraction chunking (20,000 char threshold) | Head + key sections + tail sent to LLM instead of full text |
 | Classification + SectionExtraction run in parallel | Saved ~1-2s per upload |
 | FieldExtraction + FastRiskAssessment run in parallel | Saves ~5-15s for long contracts |
-| Analysis report cached in DB after first generation | Subsequent `get_analysis_report` calls are sub-millisecond |
-| Fire-and-forget pre-generation after upload | Report is ready by the time user calls `get_analysis_report` |
+| Analysis report cached in DB after first generation | Subsequent `get_risk_analysis` calls are sub-millisecond |
+| Fire-and-forget pre-generation after upload | Report is ready by the time user calls `get_risk_analysis` |
 
 ### Current pipeline (post-optimization)
 ```
@@ -262,7 +262,7 @@ Full long-contract support (multi-pass chunked analysis, per-section risk aggreg
 | Limitation | Detail | Workaround |
 |---|---|---|
 | Long contracts (30+ pages) | Analysis may miss clauses due to LLM context limits; processing takes longer | Use `explain_clause` or `get_clause_details` to analyze specific sections |
-| Processing timeout | Contracts taking >4 min return a "still processing" message — credit is NOT refunded | Call `list_contracts` after a few minutes, then `get_analysis_report` with the ID |
+| Processing timeout | Contracts taking >4 min return a "still processing" message — credit is NOT refunded | Call `list_contracts` after a few minutes, then `get_risk_analysis` with the ID |
 | Local files | Cannot upload files from your computer via `file_url` | Paste text via `text_content`, or share via Google Drive / Dropbox |
 | Google Docs | Must be shared as "Anyone with the link" | Change sharing settings before uploading |
 | Classification confidence | Some niche contract types may not get specialized analysis | Pass `contract_type` explicitly; unsupported types are processed as general contracts |
@@ -382,18 +382,18 @@ npx @modelcontextprotocol/inspector http://localhost:8001/mcp
 
 ---
 
-#### D — get_analysis_report
+#### D — get_risk_analysis
 
 | ID | Test Case | Steps | Expected Result | Actual Result | Status |
 |---|---|---|---|---|---|
 | D1 | Valid contract | Call with a processed `contract_id` | Returns full risk analysis: posture, risk items, exposure, decision guidance, disclaimer | | |
-| D2 | Cached response | Call `get_analysis_report` twice on same ID | Second call returns instantly (sub-second) | | |
+| D2 | Cached response | Call `get_risk_analysis` twice on same ID | Second call returns instantly (sub-second) | | |
 | D3 | Wrong contract ID | Call with `contract_id` = 99999 | Clear error: "Contract not found" | | |
 | D4 | Another user's contract | Call with a contract ID belonging to a different company | Clear error: "Contract not found or access denied" | | |
 
 ---
 
-#### E — get_decision_guidance
+#### E — get_verdict
 
 | ID | Test Case | Steps | Expected Result | Actual Result | Status |
 |---|---|---|---|---|---|
@@ -402,7 +402,7 @@ npx @modelcontextprotocol/inspector http://localhost:8001/mcp
 
 ---
 
-#### F — get_narrative_walkthrough
+#### F — explain_contract
 
 | ID | Test Case | Steps | Expected Result | Actual Result | Status |
 |---|---|---|---|---|---|
@@ -411,7 +411,7 @@ npx @modelcontextprotocol/inspector http://localhost:8001/mcp
 
 ---
 
-#### G — run_standards_review
+#### G — [removed]
 
 | ID | Test Case | Steps | Expected Result | Actual Result | Status |
 |---|---|---|---|---|---|
@@ -424,7 +424,7 @@ npx @modelcontextprotocol/inspector http://localhost:8001/mcp
 
 | ID | Test Case | Steps | Expected Result | Actual Result | Status |
 |---|---|---|---|---|---|
-| H1 | Valid clause ID | Get a `clause_id` from `get_analysis_report` output, call `get_clause_details` | Returns clause risk factors, explanation, AI rewrite suggestion | | |
+| H1 | Valid clause ID | Get a `clause_id` from `get_risk_analysis` output, call `get_clause_details` | Returns clause risk factors, explanation, AI rewrite suggestion | | |
 | H2 | Invalid clause ID | Call with `clause_id` = 99999 | Clear error | | |
 
 ---

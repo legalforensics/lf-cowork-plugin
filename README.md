@@ -8,12 +8,12 @@ The LegalForensics plugin gives Claude access to your contract library via 8 MCP
 
 | Tool | What it returns |
 |---|---|
+| `upload_contract` | Upload a contract and get back a contract_id |
 | `list_contracts` | All contracts in your LF account |
-| `get_analysis_report` | Full AI risk analysis with risk posture + top risks |
-| `get_decision_guidance` | Sign / negotiate / walk away decision brief |
-| `get_narrative_walkthrough` | Plain-English contract walkthrough for non-lawyers |
-| `run_standards_review` | Compliance check against your company playbook |
-| `set_perspective` | Re-analyze from buyer / seller / vendor perspective |
+| `get_risk_analysis` | Full AI risk analysis with risk posture + top risks |
+| `get_verdict` | Sign / negotiate / walk away decision brief |
+| `explain_contract` | Plain-English contract walkthrough for non-lawyers |
+| `set_perspective` | Re-analyze from buyer / seller / vendor / tenant perspective |
 | `get_clause_details` | Deep dive on a single clause with AI rewrite suggestion |
 | `explain_clause` | Explain pasted clause text without uploading a contract |
 
@@ -59,7 +59,6 @@ Or just ask Claude naturally:
 | `/lf:analyze <id>` | Full risk analysis |
 | `/lf:brief <id>` | One-page decision brief |
 | `/lf:narrative <id>` | Plain-English walkthrough |
-| `/lf:standards-check <id>` | Playbook compliance review |
 | `/lf:perspective <id> <perspective>` | Switch negotiating perspective |
 
 ---

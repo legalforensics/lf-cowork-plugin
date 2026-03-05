@@ -11,7 +11,7 @@ Perform a full AI risk analysis on a LegalForensics contract.
 
 ## What it does
 
-1. Calls `get_analysis_report` to retrieve the full risk analysis
+1. Calls `get_risk_analysis` to retrieve the full risk analysis
 2. Summarizes: overall risk posture, top 3-5 risk items, exposure bands (operational / financial / regulatory)
 3. Surfaces recommended next steps
 

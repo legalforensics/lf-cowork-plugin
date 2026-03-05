@@ -20,20 +20,16 @@
       "description": "List all contracts in your LF account, optionally filtered by keyword."
     },
     {
-      "name": "get_analysis_report",
+      "name": "get_risk_analysis",
       "description": "Full AI risk analysis: risk posture, top risks, exposure bands, next steps."
     },
     {
-      "name": "get_decision_guidance",
+      "name": "get_verdict",
       "description": "Decision brief: sign, negotiate, or walk away — with reasoning."
     },
     {
-      "name": "get_narrative_walkthrough",
-      "description": "Plain-English narrative explaining what the contract does and where the risk lies."
-    },
-    {
-      "name": "run_standards_review",
-      "description": "Check contract against your company playbook standards."
+      "name": "explain_contract",
+      "description": "Plain-English summary of what the contract does and where the risk lies."
     },
     {
       "name": "set_perspective",

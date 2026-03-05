@@ -34,9 +34,9 @@ mcp = FastMCP(
     instructions=(
         "Analyze contracts using LegalForensics AI. "
         "Use list_contracts to discover contract IDs, then pass the ID "
-        "to analysis tools. Start with get_analysis_report for a quick risk "
-        "overview before deeper dives with get_narrative_walkthrough or "
-        "get_decision_guidance."
+        "to analysis tools. Start with get_risk_analysis for a full risk "
+        "overview, get_verdict for a sign/negotiate/walk-away decision, or "
+        "explain_contract for a plain-English explanation."
     ),
 )
 
@@ -119,7 +119,7 @@ async def list_contracts(ctx: Context, search: str = "") -> list[dict]:
 # Tool 2: Analysis report
 # ---------------------------------------------------------------------------
 @mcp.tool()
-async def get_analysis_report(ctx: Context, contract_id: int) -> dict:
+async def get_risk_analysis(ctx: Context, contract_id: int) -> dict:
     """
     Get the full AI risk analysis report for a contract.
 
@@ -145,7 +145,7 @@ async def get_analysis_report(ctx: Context, contract_id: int) -> dict:
 # Tool 3: Decision guidance
 # ---------------------------------------------------------------------------
 @mcp.tool()
-async def get_decision_guidance(ctx: Context, contract_id: int) -> dict:
+async def get_verdict(ctx: Context, contract_id: int) -> dict:
     """
     Get a decision brief: should you sign, negotiate, or walk away?
 
@@ -171,7 +171,7 @@ async def get_decision_guidance(ctx: Context, contract_id: int) -> dict:
 # Tool 4: Narrative walkthrough
 # ---------------------------------------------------------------------------
 @mcp.tool()
-async def get_narrative_walkthrough(ctx: Context, contract_id: int) -> str:
+async def explain_contract(ctx: Context, contract_id: int) -> str:
     """
     Get a plain-English narrative walkthrough of a contract.
 
@@ -194,41 +194,7 @@ async def get_narrative_walkthrough(ctx: Context, contract_id: int) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Tool 5: Standards review
-# ---------------------------------------------------------------------------
-@mcp.tool()
-async def run_standards_review(
-    ctx: Context,
-    contract_id: int,
-    playbook_id: int | None = None,
-) -> dict:
-    """
-    Check a contract against your company's negotiation playbook standards.
-
-    Returns which standards are met or violated, specific clauses that deviate
-    from policy, and suggested language fixes.
-
-    Args:
-        contract_id: LF contract ID.
-        playbook_id: Optional playbook to use. Defaults to company default.
-    """
-    api_key = _get_api_key(ctx)
-    payload: dict = {}
-    if playbook_id is not None:
-        payload["playbook_id"] = playbook_id
-
-    async with httpx.AsyncClient(timeout=120) as client:
-        resp = await client.post(
-            f"{LF_BASE_URL}/api/contracts/{contract_id}/standards-review",
-            json=payload,
-            headers=_lf_headers(api_key),
-        )
-        resp.raise_for_status()
-        return resp.json()
-
-
-# ---------------------------------------------------------------------------
-# Tool 6: Set perspective
+# Tool 5: Set perspective
 # ---------------------------------------------------------------------------
 @mcp.tool()
 async def set_perspective(
@@ -343,20 +309,12 @@ async def _refund_credit(api_key: str) -> None:
 
 
 def _normalize_file_url(url: str) -> str:
-    """Convert Google Drive/Docs share URLs to direct download URLs."""
+    """Convert Google Docs share URLs to direct DOCX export URLs."""
     import re
     # https://docs.google.com/document/d/FILE_ID/edit...
     m = re.search(r"docs\.google\.com/document/d/([a-zA-Z0-9_-]+)", url)
     if m:
         return f"https://docs.google.com/document/d/{m.group(1)}/export?format=docx"
-    # https://drive.google.com/file/d/FILE_ID/view...
-    m = re.search(r"drive\.google\.com/file/d/([a-zA-Z0-9_-]+)", url)
-    if m:
-        return f"https://drive.google.com/uc?export=download&id={m.group(1)}"
-    # https://drive.google.com/open?id=FILE_ID
-    m = re.search(r"drive\.google\.com/open\?id=([a-zA-Z0-9_-]+)", url)
-    if m:
-        return f"https://drive.google.com/uc?export=download&id={m.group(1)}"
     return url
 
 
@@ -384,16 +342,18 @@ async def upload_contract(
     Provide EITHER a URL to the contract file OR the raw contract text — not both.
 
     After upload completes, returns the contract_id which you can pass directly
-    to get_analysis_report, get_decision_guidance, get_narrative_walkthrough, etc.
+    to get_risk_analysis, get_verdict, explain_contract, etc.
 
     Args:
-        file_url: URL to the contract file (PDF, DOCX, DOC, TXT). Supported sources:
-                  - Google Drive share link (e.g. https://drive.google.com/file/d/FILE_ID/view)
-                    — automatically converted to a direct download URL.
-                  - Dropbox link with ?dl=1 parameter.
-                  - Any direct public download URL (S3 pre-signed, direct PDF link, etc).
-                  Note: local files on your computer cannot be uploaded via URL —
-                  paste the text content instead using text_content.
+        file_url: URL to the contract file. Accepted sources:
+                  - Google Docs share link (docs.google.com/document/d/...) — automatically
+                    exported as DOCX. The document must be shared publicly ("Anyone with link").
+                  - Dropbox share link — change ?dl=0 to ?dl=1 to force direct download.
+                  - Any direct public download URL returning the raw file bytes
+                    (S3 pre-signed URL, direct PDF/DOCX link, etc.).
+                  NOT supported: Google Drive file links (drive.google.com/file/d/...) —
+                  use a direct PDF URL or paste the text instead.
+                  NOT supported: local files — paste the text using text_content.
         text_content: Raw contract text to upload as a .txt file.
                       Use this when the user pastes contract language into the chat.
         title: Required display title for the contract (e.g. "Acme NDA 2026").
@@ -475,9 +435,6 @@ async def upload_contract(
         if fmt_match:
             # Google Docs export: ?format=docx
             filename = f"{base}.{fmt_match.group(1)}"
-        elif "drive.google.com" in file_url:
-            # Google Drive file: always a PDF or unknown binary — use title + .pdf
-            filename = f"{base}.pdf"
         else:
             raw_name = file_url.split("/")[-1].split("?")[0]
             filename = raw_name if "." in raw_name else f"{base}.pdf"
@@ -556,11 +513,10 @@ async def upload_contract(
                 "title": status.get("title"),
                 "contract_type": status.get("contract_type"),
                 "filename": status.get("filename"),
-                "risk_level": status.get("risk_level"),
                 "message": (
                     "Contract uploaded and processed. "
-                    "Use the contract_id with get_analysis_report, "
-                    "get_decision_guidance, or get_narrative_walkthrough."
+                    "Use the contract_id with get_risk_analysis, "
+                    "get_verdict, or explain_contract."
                 ),
             }
             # Warn for large contracts (quality may be reduced)
@@ -596,7 +552,7 @@ async def upload_contract(
             "Upload accepted but processing is taking longer than expected "
             + ("(large contracts can take 3–5 minutes). " if _large_contract else ". ")
             + "Run list_contracts in a few minutes to find your contract, "
-            "then call get_analysis_report with the contract_id."
+            "then call get_risk_analysis with the contract_id."
         ),
     }
 
