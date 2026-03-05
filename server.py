@@ -458,6 +458,7 @@ async def upload_contract(
             raise RuntimeError(f"Failed to reserve credit before upload: {e}")
 
     # --- POST multipart to LF API ---
+    await ctx.info(f"Uploading '{title}' ({len(file_bytes):,} bytes)...")
     form_data: dict = {}
     if title:
         form_data["title"] = title
@@ -490,15 +491,28 @@ async def upload_contract(
     # 3MB ≈ 30+ pages of text. Scanned PDFs can be large per page so we use
     # a high threshold to avoid false positives on short scanned documents.
     _large_contract = len(file_bytes) > 3_000_000
-    _poll_attempts = 80 if _large_contract else 40  # 80×3s=4min, 40×3s=2min
-    if _large_contract:
-        pass  # warning surfaced in result below
+    # Max attempts: large=80 (4 min), standard=40 (2 min)
+    # Poll schedule: 1s for first 15s, then 3s — cuts perceived wait by ~10-15s
+    _poll_attempts = 80 if _large_contract else 40
+    _progress_messages = {
+        0:  "Contract uploaded. Extracting text and structure...",
+        5:  "Classifying contract type and identifying clauses...",
+        10: "Running risk assessment and field extraction...",
+        20: "Finalizing analysis..." + (" (large contracts take 3–5 min)" if _large_contract else ""),
+    }
+
+    await ctx.info("Contract received. Starting AI analysis pipeline...")
 
     poll_headers = {"X-LF-API-Key": api_key}
     status_url = f"{LF_BASE_URL}/api/contracts/{contract_uuid}/status"
 
-    for attempt in range(_poll_attempts):  # 3s per attempt
-        await asyncio.sleep(3)
+    for attempt in range(_poll_attempts):
+        # Fast polling for first 15s (attempts 0-4), then 3s intervals
+        await asyncio.sleep(1 if attempt < 15 else 3)
+
+        if attempt in _progress_messages:
+            await ctx.info(_progress_messages[attempt])
+
         async with httpx.AsyncClient(timeout=30) as client:
             try:
                 sr = await client.get(status_url, headers=poll_headers)
