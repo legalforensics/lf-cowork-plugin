@@ -327,7 +327,7 @@ async def explain_clause(
 
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(
-            f"{LF_BASE_URL}/api/simplification/explain-clause",
+            f"{LF_BASE_URL}/api/v1/contracts/simplify/explain-clause",
             json=payload,
             headers=_lf_headers(api_key),
         )
