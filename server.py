@@ -468,15 +468,19 @@ async def upload_contract(
             dl = await client.get(file_url)
             dl.raise_for_status()
             file_bytes = dl.content
-        # Derive filename — for Google export URLs the path has no extension
+        # Derive filename — Google and other URLs often have no usable filename in path
         import re as _re
+        base = title.replace(" ", "_")[:50]
         fmt_match = _re.search(r"[?&]format=(\w+)", file_url)
         if fmt_match:
-            ext = fmt_match.group(1)
-            filename = f"{title.replace(' ', '_')[:50]}.{ext}"
+            # Google Docs export: ?format=docx
+            filename = f"{base}.{fmt_match.group(1)}"
+        elif "drive.google.com" in file_url:
+            # Google Drive file: always a PDF or unknown binary — use title + .pdf
+            filename = f"{base}.pdf"
         else:
             raw_name = file_url.split("/")[-1].split("?")[0]
-            filename = raw_name if "." in raw_name else "contract.pdf"
+            filename = raw_name if "." in raw_name else f"{base}.pdf"
     else:
         file_bytes = text_content.encode("utf-8")
         slug = (title or "contract").replace(" ", "_")[:50]
