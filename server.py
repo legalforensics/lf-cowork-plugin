@@ -529,10 +529,10 @@ async def upload_contract(
         return body
 
     # --- Poll status until done ---
-    # Large contracts (>500 KB) get extended timeout (4 min); standard is 2 min.
-    # Note: contracts over ~30 pages may have reduced analysis quality due to
-    # LLM context limits — best results are on contracts up to ~20 pages.
-    _large_contract = len(file_bytes) > 500_000
+    # Large contracts (>3 MB) get extended timeout (4 min); standard is 2 min.
+    # 3MB ≈ 30+ pages of text. Scanned PDFs can be large per page so we use
+    # a high threshold to avoid false positives on short scanned documents.
+    _large_contract = len(file_bytes) > 3_000_000
     _poll_attempts = 80 if _large_contract else 40  # 80×3s=4min, 40×3s=2min
     if _large_contract:
         pass  # warning surfaced in result below
