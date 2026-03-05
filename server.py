@@ -172,6 +172,7 @@ async def get_risk_analysis(ctx: Context, contract_id: int) -> dict:
         contract_id: LF contract ID (get from list_contracts).
     """
     api_key = _get_api_key(ctx)
+    await ctx.info("Fetching risk analysis...")
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.get(
             f"{LF_BASE_URL}/api/contracts/{contract_id}/analysis-report",
@@ -198,6 +199,7 @@ async def get_verdict(ctx: Context, contract_id: int) -> dict:
         contract_id: LF contract ID.
     """
     api_key = _get_api_key(ctx)
+    await ctx.info("Generating verdict...")
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.get(
             f"{LF_BASE_URL}/api/contracts/{contract_id}/decision-guidance",
@@ -224,6 +226,7 @@ async def explain_contract(ctx: Context, contract_id: int) -> str:
         contract_id: LF contract ID.
     """
     api_key = _get_api_key(ctx)
+    await ctx.info("Generating plain-English explanation — this takes 30-60 seconds...")
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.get(
             f"{LF_BASE_URL}/api/contracts/{contract_id}/narrative-walkthrough",
@@ -320,12 +323,17 @@ async def explain_clause(
         contract_context: Optional context such as contract type or governing law
                           to improve analysis accuracy.
     """
+    if not clause_text or not clause_text.strip():
+        raise ValueError("clause_text cannot be empty.")
+
     api_key = _get_api_key(ctx)
     payload: dict = {"clause_text": clause_text}
     if contract_context:
         payload["context"] = contract_context
 
-    async with httpx.AsyncClient(timeout=60) as client:
+    await ctx.info("Analyzing clause — generating plain-English explanation...")
+
+    async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.post(
             f"{LF_BASE_URL}/api/plugin/explain-clause",
             json=payload,
