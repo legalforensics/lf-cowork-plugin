@@ -252,28 +252,21 @@ async def set_perspective(
 
     Changes which party's interests the AI prioritizes when assessing risk
     and recommending changes. Ask the user which role they are playing in
-    the contract and map it to the closest option below.
+    the contract before calling this tool.
 
     Args:
         contract_id: LF contract ID.
-        perspective: The user's role in the contract. Must be one of:
-            - buyer: purchasing goods or services
-            - seller: providing goods or services
-            - licensor: granting a license or IP rights
-            - licensee: receiving a license or IP rights
-            - vendor: supplying a product or platform
-            - customer: receiving a product or service
-            - neutral: no specific side (balanced analysis)
+        perspective: The user's role in the contract as free text.
+            Examples: "buyer", "seller", "tenant", "landlord", "employer",
+            "employee", "licensor", "licensee", "franchisor", "franchisee",
+            "vendor", "customer", "contractor", "client", "neutral".
+            Use whatever role best describes the user's position.
     """
-    valid = {"buyer", "seller", "licensor", "licensee", "vendor", "customer", "neutral"}
-    if perspective.lower() not in valid:
-        raise ValueError(f"perspective must be one of: {', '.join(sorted(valid))}")
-
     api_key = _get_api_key(ctx)
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(
             f"{LF_BASE_URL}/api/contracts/{contract_id}/perspective",
-            json={"perspective": perspective.lower()},
+            json={"perspective": perspective.strip()},
             headers=_lf_headers(api_key),
         )
         resp.raise_for_status()
@@ -312,6 +305,7 @@ async def explain_clause(
     ctx: Context,
     clause_text: str,
     contract_context: str = "",
+    perspective: str = "",
 ) -> dict:
     """
     Explain what a clause means in plain English and identify its risks.
@@ -322,6 +316,9 @@ async def explain_clause(
         clause_text: The raw clause text to analyze.
         contract_context: Optional context such as contract type or governing law
                           to improve analysis accuracy.
+        perspective: Your role in the contract as free text (e.g. "buyer", "tenant",
+                     "employee", "licensee"). Frames the explanation and negotiation
+                     hint from your side of the deal. If omitted, analysis is neutral.
     """
     if not clause_text or not clause_text.strip():
         raise ValueError("clause_text cannot be empty.")
@@ -330,6 +327,8 @@ async def explain_clause(
     payload: dict = {"clause_text": clause_text}
     if contract_context:
         payload["context"] = contract_context
+    if perspective and perspective.strip():
+        payload["perspective"] = perspective.strip()
 
     await ctx.info("Analyzing clause — generating plain-English explanation (30-90 seconds)...")
 
@@ -398,6 +397,7 @@ async def upload_contract(
     text_content: str = "",
     title: str = "",
     contract_type: str = "",
+    perspective: str = "",
 ) -> dict:
     """
     Upload a contract to LegalForensics and wait for it to finish processing.
@@ -445,6 +445,10 @@ async def upload_contract(
                        we prioritize specialized support based on demand.
 
                        If omitted, LF auto-classifies the contract type.
+        perspective: Your role in this contract as free text (e.g. "buyer", "tenant",
+                     "employee", "licensee", "franchisee"). Sets the perspective for
+                     all subsequent analysis tools. If omitted, analysis is neutral.
+                     You can also change this later using set_perspective.
     """
     if not title or not title.strip():
         raise ValueError("title is required. Provide a short name for the contract (e.g. 'Acme NDA 2026').")
@@ -602,6 +606,19 @@ async def upload_contract(
                     "This was your last credit. "
                     "Purchase more at: https://app.legalforensics.ai/plugin"
                 )
+            # Auto-set perspective if provided
+            if perspective and perspective.strip() and result.get("contract_id"):
+                try:
+                    async with httpx.AsyncClient(timeout=15) as pclient:
+                        await pclient.post(
+                            f"{LF_BASE_URL}/api/contracts/{result['contract_id']}/perspective",
+                            json={"perspective": perspective.strip()},
+                            headers=_lf_headers(api_key),
+                        )
+                    result["perspective"] = perspective.strip()
+                except Exception:
+                    pass  # non-fatal — user can call set_perspective manually
+
             return result
 
         if status.get("status") == "failed":
