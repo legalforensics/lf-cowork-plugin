@@ -331,9 +331,9 @@ async def explain_clause(
     if contract_context:
         payload["context"] = contract_context
 
-    await ctx.info("Analyzing clause — generating plain-English explanation...")
+    await ctx.info("Analyzing clause — generating plain-English explanation (30-90 seconds)...")
 
-    async with httpx.AsyncClient(timeout=120) as client:
+    async with httpx.AsyncClient(timeout=180) as client:
         resp = await client.post(
             f"{LF_BASE_URL}/api/plugin/explain-clause",
             json=payload,
