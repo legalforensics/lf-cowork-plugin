@@ -500,6 +500,15 @@ async def upload_contract(
 
     content_type = _infer_content_type(filename)
 
+    # --- Validate file type before spending a credit ---
+    _supported_exts = {".pdf", ".docx", ".doc", ".txt"}
+    _ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if _ext not in _supported_exts:
+        raise ValueError(
+            f"Unsupported file type '{_ext}'. Supported formats: PDF, DOCX, DOC, TXT. "
+            "For other formats, copy and paste the contract text using text_content."
+        )
+
     # --- Deduct credit upfront (skip for subscription users) ---
     is_subscription = remaining == -1
     if not is_subscription:
