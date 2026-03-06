@@ -408,15 +408,11 @@ async def upload_contract(
     to get_risk_analysis, get_verdict, explain_contract, etc.
 
     Args:
-        file_url: URL to the contract file. Accepted sources:
+        file_url: URL to the contract file. Currently supported:
                   - Google Docs share link (docs.google.com/document/d/...) — automatically
                     exported as DOCX. The document must be shared publicly ("Anyone with link").
-                  - Dropbox share link — change ?dl=0 to ?dl=1 to force direct download.
-                  - Any direct public download URL returning the raw file bytes
-                    (S3 pre-signed URL, direct PDF/DOCX link, etc.).
-                  NOT supported: Google Drive file links (drive.google.com/file/d/...) —
-                  use a direct PDF URL or paste the text instead.
-                  NOT supported: local files — paste the text using text_content.
+                  NOT supported: Google Drive file links, Dropbox, SharePoint, OneDrive,
+                  or local files — paste the contract text using text_content instead.
         text_content: Raw contract text to upload as a .txt file.
                       Use this when the user pastes contract language into the chat.
         title: Required display title for the contract (e.g. "Acme NDA 2026").
