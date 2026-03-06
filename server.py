@@ -266,7 +266,7 @@ async def set_perspective(
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(
             f"{LF_BASE_URL}/api/contracts/{contract_id}/perspective",
-            json={"perspective": perspective.strip()},
+            json={"party": perspective.strip()},
             headers=_lf_headers(api_key),
         )
         resp.raise_for_status()
@@ -612,7 +612,7 @@ async def upload_contract(
                     async with httpx.AsyncClient(timeout=15) as pclient:
                         await pclient.post(
                             f"{LF_BASE_URL}/api/contracts/{result['contract_id']}/perspective",
-                            json={"perspective": perspective.strip()},
+                            json={"party": perspective.strip()},
                             headers=_lf_headers(api_key),
                         )
                     result["perspective"] = perspective.strip()
