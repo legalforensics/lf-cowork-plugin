@@ -1,6 +1,6 @@
 {
   "name": "LegalForensics",
-  "description": "Know where you're exposed before you sign. Decision-first contract review for business teams — no legal expertise required. Works on any business contract — NDAs, MSAs, SOWs, lease, employment, consulting, contractor, service, distribution, franchise, and partnership agreements. Specialized depth for tech and healthcare agreements. Get risk-ranked clause analysis, structural imbalances, specific renegotiation asks, and a clear verdict: sign, negotiate, or walk away. Built for procurement and business teams, not lawyers. Learn more at legalforensics.ai",
+  "description": "Know where you're exposed before you sign. Decision-first contract review that works directly inside Claude — no software to install, no files uploaded to a third-party app. Paste any contract text or share a Google Doc link and get results in minutes. Works on any business contract — NDAs, MSAs, SOWs, lease, employment, consulting, contractor, service, distribution, franchise, and partnership agreements. Specialized depth for tech and healthcare agreements. Get risk-ranked clause analysis, structural imbalances, specific renegotiation asks, and a clear verdict: sign, negotiate, or walk away. Built for procurement and business teams, not lawyers. Learn more at legalforensics.ai",
   "version": "1.0.0",
   "author": "LegalForensics.AI",
   "homepage": "https://app.legalforensics.ai/plugin",
