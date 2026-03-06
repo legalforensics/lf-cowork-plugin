@@ -558,18 +558,16 @@ async def upload_contract(
         return body
 
     # --- Poll status until done ---
-    # Large contracts (>3 MB) get extended timeout (4 min); standard is 2 min.
-    # 3MB ≈ 30+ pages of text. Scanned PDFs can be large per page so we use
-    # a high threshold to avoid false positives on short scanned documents.
+    # Poll for up to 90s then return early — contract continues processing in
+    # the background and user can retrieve it with list_contracts.
+    # Poll schedule: 1s for first 15 attempts, then 3s.
     _large_contract = len(file_bytes) > 3_000_000
-    # Max attempts: large=80 (4 min), standard=40 (2 min)
-    # Poll schedule: 1s for first 15s, then 3s — cuts perceived wait by ~10-15s
-    _poll_attempts = 80 if _large_contract else 40
+    _poll_attempts = 30  # ~60s max (15×1s + 15×3s)
     _progress_messages = {
         0:  "Contract uploaded. Extracting text and structure...",
         5:  "Classifying contract type and identifying clauses...",
         10: "Running risk assessment and field extraction...",
-        20: "Finalizing analysis..." + (" (large contracts take 3–5 min)" if _large_contract else ""),
+        20: "Finalizing analysis...",
     }
 
     await ctx.info("Contract received. Starting AI analysis pipeline...")
@@ -647,9 +645,9 @@ async def upload_contract(
         "status": "processing",
         "contract_uuid": contract_uuid,
         "message": (
-            "Upload accepted but processing is taking longer than expected "
-            + ("(large contracts can take 3–5 minutes). " if _large_contract else ". ")
-            + "Run list_contracts in a few minutes to find your contract, "
+            "Contract uploaded and being processed in the background. "
+            "Large contracts (30+ pages) can take 2–5 minutes. "
+            "Run list_contracts in 2–3 minutes to find your contract, "
             "then call get_risk_analysis with the contract_id."
         ),
     }
