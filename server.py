@@ -373,6 +373,13 @@ async def _refund_credit(api_key: str) -> None:
 def _normalize_file_url(url: str) -> str:
     """Convert Google Docs share URLs to direct DOCX export URLs."""
     import re
+    # Reject Google Drive file links — they serve an auth/redirect page, not raw bytes
+    if re.search(r"drive\.google\.com/file/d/", url):
+        raise ValueError(
+            "Google Drive file links are not supported. "
+            "Please share the file as a Google Doc (docs.google.com/document/...) "
+            "or paste the contract text directly using text_content."
+        )
     # https://docs.google.com/document/d/FILE_ID/edit...
     m = re.search(r"docs\.google\.com/document/d/([a-zA-Z0-9_-]+)", url)
     if m:
