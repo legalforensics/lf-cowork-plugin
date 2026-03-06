@@ -602,10 +602,10 @@ async def upload_contract(
                 )
             # Warn when this was the last credit
             if remaining == 1:
-                result["warning"] = (
-                    "This was your last credit. "
-                    "Purchase more at: https://app.legalforensics.ai/plugin"
-                )
+                last_credit_url = await _get_checkout_url(api_key)
+                warning = "This was your last credit. "
+                warning += f"Purchase more at: {last_credit_url}" if last_credit_url else "Visit https://app.legalforensics.ai/plugin to purchase credits."
+                result["warning"] = warning
             # Auto-set perspective if provided
             if perspective and perspective.strip() and result.get("contract_id"):
                 try:
