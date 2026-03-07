@@ -173,7 +173,7 @@ async def get_risk_analysis(ctx: Context, contract_id: int) -> dict:
     """
     api_key = _get_api_key(ctx)
     await ctx.info("Fetching risk analysis...")
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.get(
             f"{LF_BASE_URL}/api/contracts/{contract_id}/analysis-report",
             headers=_lf_headers(api_key),
