@@ -119,7 +119,7 @@ async def list_contracts(ctx: Context, search: str = "") -> list[dict]:
 # Tool 2: Credits
 # ---------------------------------------------------------------------------
 @mcp.tool()
-async def get_credits(ctx: Context) -> dict:
+async def check_credits(ctx: Context) -> dict:
     """
     Check your LegalForensics credit balance.
 
