@@ -160,8 +160,36 @@ async def check_credits(ctx: Context) -> dict:
 # ---------------------------------------------------------------------------
 # Tool 3: Analysis report
 # ---------------------------------------------------------------------------
+_VALID_PERSPECTIVES = {
+    # buyer / seller
+    "buyer", "seller", "purchaser", "vendor",
+    # property
+    "tenant", "landlord", "lessor", "lessee",
+    # employment
+    "employer", "employee",
+    # IP / licensing
+    "licensor", "licensee",
+    # services
+    "client", "contractor", "service provider", "consultant",
+    # franchise
+    "franchisor", "franchisee",
+    # finance
+    "lender", "borrower", "investor",
+    # supply chain
+    "manufacturer", "distributor", "reseller", "supplier",
+    # data
+    "data controller", "data processor",
+    # neutral
+    "neutral",
+}
+
+
 @mcp.tool()
-async def get_risk_analysis(ctx: Context, contract_id: int) -> dict:
+async def get_risk_analysis(
+    ctx: Context,
+    contract_id: int,
+    perspective: str = "",
+) -> dict:
     """
     Get the full AI risk analysis report for a contract.
 
@@ -170,9 +198,37 @@ async def get_risk_analysis(ctx: Context, contract_id: int) -> dict:
 
     Args:
         contract_id: LF contract ID (get from list_contracts).
+        perspective: Optional. Your role in this contract. Frames all risks and
+            recommendations from your side of the deal. Must be one of: buyer,
+            seller, purchaser, vendor, tenant, landlord, lessor, lessee, employer,
+            employee, licensor, licensee, client, contractor, service provider,
+            consultant, franchisor, franchisee, lender, borrower, investor,
+            manufacturer, distributor, reseller, supplier, data controller,
+            data processor, neutral. Leave blank for a neutral analysis.
     """
     api_key = _get_api_key(ctx)
-    await ctx.info("Fetching risk analysis...")
+
+    # Validate and set perspective before fetching analysis
+    if perspective and perspective.strip():
+        p = perspective.strip().lower()
+        if p not in _VALID_PERSPECTIVES:
+            valid_list = ", ".join(sorted(_VALID_PERSPECTIVES))
+            raise ValueError(
+                f"'{perspective}' is not a recognised contract role. "
+                f"Please use one of: {valid_list}."
+            )
+        # Set perspective on the backend (persists for this contract)
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"{LF_BASE_URL}/api/contracts/{contract_id}/perspective",
+                json={"party": p},
+                headers=_lf_headers(api_key),
+            )
+            resp.raise_for_status()
+        await ctx.info(f"Perspective set to '{p}'. Fetching analysis...")
+    else:
+        await ctx.info("Fetching risk analysis...")
+
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.get(
             f"{LF_BASE_URL}/api/contracts/{contract_id}/analysis-report",
@@ -236,41 +292,6 @@ async def explain_contract(ctx: Context, contract_id: int) -> str:
         data = resp.json()
         narrative = data.get("narrative") or str(data)
         return f"{narrative}\n\n---\n{DISCLAIMER}"
-
-
-# ---------------------------------------------------------------------------
-# Tool 5: Set perspective
-# ---------------------------------------------------------------------------
-@mcp.tool()
-async def set_perspective(
-    ctx: Context,
-    contract_id: int,
-    perspective: str,
-) -> dict:
-    """
-    Re-analyze a contract from a specific negotiating perspective.
-
-    Changes which party's interests the AI prioritizes when assessing risk
-    and recommending changes. Ask the user which role they are playing in
-    the contract before calling this tool.
-
-    Args:
-        contract_id: LF contract ID.
-        perspective: The user's role in the contract as free text.
-            Examples: "buyer", "seller", "tenant", "landlord", "employer",
-            "employee", "licensor", "licensee", "franchisor", "franchisee",
-            "vendor", "customer", "contractor", "client", "neutral".
-            Use whatever role best describes the user's position.
-    """
-    api_key = _get_api_key(ctx)
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(
-            f"{LF_BASE_URL}/api/contracts/{contract_id}/perspective",
-            json={"party": perspective.strip()},
-            headers=_lf_headers(api_key),
-        )
-        resp.raise_for_status()
-        return resp.json()
 
 
 # ---------------------------------------------------------------------------
@@ -592,18 +613,20 @@ async def upload_contract(
                 warning = "This was your last credit. "
                 warning += f"Purchase more at: {last_credit_url}" if last_credit_url else "Visit https://app.legalforensics.ai/plugin to purchase credits."
                 result["warning"] = warning
-            # Auto-set perspective if provided
+            # Auto-set perspective if provided and valid
             if perspective and perspective.strip() and result.get("contract_id"):
-                try:
-                    async with httpx.AsyncClient(timeout=15) as pclient:
-                        await pclient.post(
-                            f"{LF_BASE_URL}/api/contracts/{result['contract_id']}/perspective",
-                            json={"party": perspective.strip()},
-                            headers=_lf_headers(api_key),
-                        )
-                    result["perspective"] = perspective.strip()
-                except Exception:
-                    pass  # non-fatal — user can call set_perspective manually
+                p = perspective.strip().lower()
+                if p in _VALID_PERSPECTIVES:
+                    try:
+                        async with httpx.AsyncClient(timeout=15) as pclient:
+                            await pclient.post(
+                                f"{LF_BASE_URL}/api/contracts/{result['contract_id']}/perspective",
+                                json={"party": p},
+                                headers=_lf_headers(api_key),
+                            )
+                        result["perspective"] = p
+                    except Exception:
+                        pass  # non-fatal
 
             return result
 
