@@ -274,31 +274,7 @@ async def set_perspective(
 
 
 # ---------------------------------------------------------------------------
-# Tool 7: Clause details
-# ---------------------------------------------------------------------------
-@mcp.tool()
-async def get_clause_details(ctx: Context, clause_id: int) -> dict:
-    """
-    Get detailed analysis and AI rewrite suggestion for a specific clause.
-
-    Returns risk level, risk factors, plain-English explanation, AI-suggested
-    improved language, and interaction history.
-
-    Args:
-        clause_id: Clause ID visible in the analysis report output.
-    """
-    api_key = _get_api_key(ctx)
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.get(
-            f"{LF_BASE_URL}/api/clause/{clause_id}/details",
-            headers=_lf_headers(api_key),
-        )
-        resp.raise_for_status()
-        return resp.json()
-
-
-# ---------------------------------------------------------------------------
-# Tool 8: Explain clause (ad-hoc, no contract upload needed)
+# Tool 7: Explain clause (ad-hoc, no contract upload needed)
 # ---------------------------------------------------------------------------
 @mcp.tool()
 async def explain_clause(
@@ -608,7 +584,7 @@ async def upload_contract(
                     "This contract is large (30+ pages). Analysis covers the full document "
                     "but very long contracts may have reduced clause-level detail due to "
                     "AI context limits. For best results, analyze key sections separately "
-                    "using explain_clause or get_clause_details."
+                    "using explain_clause."
                 )
             # Warn when this was the last credit
             if remaining == 1:
