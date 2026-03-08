@@ -202,12 +202,23 @@ async def get_risk_analysis(
     Args:
         contract_id: LF contract ID (get from list_contracts).
         perspective: Optional. Your role in this contract. Frames all risks and
-            recommendations from your side of the deal. Must be one of: buyer,
-            seller, purchaser, vendor, tenant, landlord, lessor, lessee, employer,
-            employee, licensor, licensee, client, contractor, service provider,
-            consultant, franchisor, franchisee, lender, borrower, investor,
-            manufacturer, distributor, reseller, supplier, foundry, fabless,
-            data controller, data processor, neutral. Leave blank for a neutral analysis.
+            recommendations from your side of the deal. Leave blank for neutral.
+            Common roles by contract type:
+            - NDA: disclosing party, receiving party
+            - MSA / SOW: client, service provider, contractor, consultant
+            - Employment: employer, employee
+            - Lease: landlord, tenant, lessor, lessee
+            - IP / License: licensor, licensee
+            - Supply chain: buyer, seller, supplier, manufacturer, distributor
+            - Foundry / semiconductor: foundry, fabless
+            - Finance: lender, borrower, investor
+            - Data processing: data controller, data processor
+            - Franchise: franchisor, franchisee
+            Full list: buyer, seller, purchaser, vendor, tenant, landlord,
+            lessor, lessee, employer, employee, licensor, licensee, client,
+            contractor, service provider, consultant, franchisor, franchisee,
+            lender, borrower, investor, manufacturer, distributor, reseller,
+            supplier, foundry, fabless, data controller, data processor, neutral.
         force_refresh: Set to true to regenerate the analysis from scratch,
             discarding the cached result. Use when switching perspective for
             the first time or after a contract is re-uploaded.
@@ -267,14 +278,19 @@ async def get_verdict(
     Args:
         contract_id: LF contract ID (get from list_contracts).
         perspective: Optional. Your role in this contract. Frames the verdict
-            and all recommendations from your side of the deal. Must be one of:
-            buyer, seller, purchaser, vendor, tenant, landlord, lessor, lessee,
-            employer, employee, licensor, licensee, client, contractor,
-            service provider, consultant, franchisor, franchisee, lender,
-            borrower, investor, manufacturer, distributor, reseller, supplier,
-            foundry, fabless, data controller, data processor, neutral.
-            Leave blank to use the perspective set via get_risk_analysis, or
-            for a neutral verdict.
+            and all recommendations from your side of the deal. Leave blank to
+            use the perspective already set via get_risk_analysis, or for neutral.
+            Common roles by contract type:
+            - NDA: disclosing party, receiving party
+            - MSA / SOW: client, service provider, contractor, consultant
+            - Employment: employer, employee
+            - Lease: landlord, tenant, lessor, lessee
+            - IP / License: licensor, licensee
+            - Supply chain: buyer, seller, supplier, manufacturer, distributor
+            - Foundry / semiconductor: foundry, fabless
+            - Finance: lender, borrower, investor
+            - Data processing: data controller, data processor
+            - Franchise: franchisor, franchisee
         force_refresh: Set to true to regenerate the verdict from scratch,
             discarding the cached result.
     """
@@ -359,13 +375,18 @@ async def explain_clause(
         contract_context: Optional. Contract type or governing law to improve
                           accuracy (e.g. "NDA governed by English law").
         perspective: Optional. Your role in this contract. Frames the explanation
-            and negotiation hints from your side of the deal. Must be one of:
-            buyer, seller, purchaser, vendor, tenant, landlord, lessor, lessee,
-            employer, employee, licensor, licensee, client, contractor,
-            service provider, consultant, franchisor, franchisee, lender,
-            borrower, investor, manufacturer, distributor, reseller, supplier,
-            foundry, fabless, data controller, data processor, neutral.
-            Leave blank for a neutral explanation.
+            and negotiation hints from your side of the deal. Leave blank for neutral.
+            Common roles by contract type:
+            - NDA: disclosing party, receiving party
+            - MSA / SOW: client, service provider, contractor, consultant
+            - Employment: employer, employee
+            - Lease: landlord, tenant, lessor, lessee
+            - IP / License: licensor, licensee
+            - Supply chain: buyer, seller, supplier, manufacturer, distributor
+            - Foundry / semiconductor: foundry, fabless
+            - Finance: lender, borrower, investor
+            - Data processing: data controller, data processor
+            - Franchise: franchisor, franchisee
     """
     if not clause_text or not clause_text.strip():
         raise ValueError("clause_text cannot be empty.")
