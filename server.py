@@ -175,8 +175,10 @@ _VALID_PERSPECTIVES = {
     "franchisor", "franchisee",
     # finance
     "lender", "borrower", "investor",
-    # supply chain
+    # supply chain / manufacturing
     "manufacturer", "distributor", "reseller", "supplier",
+    # semiconductor / foundry
+    "foundry", "fabless",
     # data
     "data controller", "data processor",
     # neutral
@@ -203,8 +205,8 @@ async def get_risk_analysis(
             seller, purchaser, vendor, tenant, landlord, lessor, lessee, employer,
             employee, licensor, licensee, client, contractor, service provider,
             consultant, franchisor, franchisee, lender, borrower, investor,
-            manufacturer, distributor, reseller, supplier, data controller,
-            data processor, neutral. Leave blank for a neutral analysis.
+            manufacturer, distributor, reseller, supplier, foundry, fabless,
+            data controller, data processor, neutral. Leave blank for a neutral analysis.
     """
     api_key = _get_api_key(ctx)
 
