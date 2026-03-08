@@ -246,19 +246,51 @@ async def get_risk_analysis(
 # Tool 3: Decision guidance
 # ---------------------------------------------------------------------------
 @mcp.tool()
-async def get_verdict(ctx: Context, contract_id: int) -> dict:
+async def get_verdict(
+    ctx: Context,
+    contract_id: int,
+    perspective: str = "",
+) -> dict:
     """
     Get a decision brief: should you sign, negotiate, or walk away?
 
-    Returns the recommended decision, negotiation priorities, risk-based reasoning,
-    and estimated exposure if signed as-is.
+    Returns verdict (sign / negotiate / walk away), reasoning, negotiation
+    priorities, structural risk assessment, and top 3 actions.
 
     Args:
-        contract_id: LF contract ID.
+        contract_id: LF contract ID (get from list_contracts).
+        perspective: Optional. Your role in this contract. Frames the verdict
+            and all recommendations from your side of the deal. Must be one of:
+            buyer, seller, purchaser, vendor, tenant, landlord, lessor, lessee,
+            employer, employee, licensor, licensee, client, contractor,
+            service provider, consultant, franchisor, franchisee, lender,
+            borrower, investor, manufacturer, distributor, reseller, supplier,
+            foundry, fabless, data controller, data processor, neutral.
+            Leave blank to use the perspective set via get_risk_analysis, or
+            for a neutral verdict.
     """
     api_key = _get_api_key(ctx)
-    await ctx.info("Generating verdict...")
-    async with httpx.AsyncClient(timeout=60) as client:
+
+    if perspective and perspective.strip():
+        p = perspective.strip().lower()
+        if p not in _VALID_PERSPECTIVES:
+            valid_list = ", ".join(sorted(_VALID_PERSPECTIVES))
+            raise ValueError(
+                f"'{perspective}' is not a recognised contract role. "
+                f"Please use one of: {valid_list}."
+            )
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"{LF_BASE_URL}/api/contracts/{contract_id}/perspective",
+                json={"party": p},
+                headers=_lf_headers(api_key),
+            )
+            resp.raise_for_status()
+        await ctx.info(f"Perspective set to '{p}'. Generating verdict...")
+    else:
+        await ctx.info("Generating verdict...")
+
+    async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.get(
             f"{LF_BASE_URL}/api/contracts/{contract_id}/decision-guidance",
             headers=_lf_headers(api_key),
