@@ -191,6 +191,7 @@ async def get_risk_analysis(
     ctx: Context,
     contract_id: int,
     perspective: str = "",
+    force_refresh: bool = False,
 ) -> dict:
     """
     Get the full AI risk analysis report for a contract.
@@ -207,6 +208,9 @@ async def get_risk_analysis(
             consultant, franchisor, franchisee, lender, borrower, investor,
             manufacturer, distributor, reseller, supplier, foundry, fabless,
             data controller, data processor, neutral. Leave blank for a neutral analysis.
+        force_refresh: Set to true to regenerate the analysis from scratch,
+            discarding the cached result. Use when switching perspective for
+            the first time or after a contract is re-uploaded.
     """
     api_key = _get_api_key(ctx)
 
@@ -231,10 +235,12 @@ async def get_risk_analysis(
     else:
         await ctx.info("Fetching risk analysis...")
 
+    params = {"force_refresh": "true"} if force_refresh else {}
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.get(
             f"{LF_BASE_URL}/api/contracts/{contract_id}/analysis-report",
             headers=_lf_headers(api_key),
+            params=params,
         )
         resp.raise_for_status()
         result = resp.json()
@@ -250,6 +256,7 @@ async def get_verdict(
     ctx: Context,
     contract_id: int,
     perspective: str = "",
+    force_refresh: bool = False,
 ) -> dict:
     """
     Get a decision brief: should you sign, negotiate, or walk away?
@@ -268,6 +275,8 @@ async def get_verdict(
             foundry, fabless, data controller, data processor, neutral.
             Leave blank to use the perspective set via get_risk_analysis, or
             for a neutral verdict.
+        force_refresh: Set to true to regenerate the verdict from scratch,
+            discarding the cached result.
     """
     api_key = _get_api_key(ctx)
 
@@ -290,10 +299,12 @@ async def get_verdict(
     else:
         await ctx.info("Generating verdict...")
 
+    params = {"force_refresh": "true"} if force_refresh else {}
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.get(
             f"{LF_BASE_URL}/api/contracts/{contract_id}/decision-guidance",
             headers=_lf_headers(api_key),
+            params=params,
         )
         resp.raise_for_status()
         result = resp.json()
