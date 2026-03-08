@@ -349,6 +349,10 @@ async def explain_contract(ctx: Context, contract_id: int) -> str:
             f"{LF_BASE_URL}/api/contracts/{contract_id}/narrative-walkthrough",
             headers=_lf_headers(api_key),
         )
+        if resp.status_code == 404:
+            raise ValueError(f"Contract {contract_id} not found or you don't have access to it.")
+        if resp.status_code == 401:
+            raise ValueError("Invalid or missing API key.")
         resp.raise_for_status()
         data = resp.json()
         narrative = data.get("narrative") or str(data)
