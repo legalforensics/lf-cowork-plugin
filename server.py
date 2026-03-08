@@ -313,11 +313,16 @@ async def explain_clause(
 
     Args:
         clause_text: The raw clause text to analyze.
-        contract_context: Optional context such as contract type or governing law
-                          to improve analysis accuracy.
-        perspective: Your role in the contract as free text (e.g. "buyer", "tenant",
-                     "employee", "licensee"). Frames the explanation and negotiation
-                     hint from your side of the deal. If omitted, analysis is neutral.
+        contract_context: Optional. Contract type or governing law to improve
+                          accuracy (e.g. "NDA governed by English law").
+        perspective: Optional. Your role in this contract. Frames the explanation
+            and negotiation hints from your side of the deal. Must be one of:
+            buyer, seller, purchaser, vendor, tenant, landlord, lessor, lessee,
+            employer, employee, licensor, licensee, client, contractor,
+            service provider, consultant, franchisor, franchisee, lender,
+            borrower, investor, manufacturer, distributor, reseller, supplier,
+            foundry, fabless, data controller, data processor, neutral.
+            Leave blank for a neutral explanation.
     """
     if not clause_text or not clause_text.strip():
         raise ValueError("clause_text cannot be empty.")
@@ -327,7 +332,14 @@ async def explain_clause(
     if contract_context:
         payload["context"] = contract_context
     if perspective and perspective.strip():
-        payload["perspective"] = perspective.strip()
+        p = perspective.strip().lower()
+        if p not in _VALID_PERSPECTIVES:
+            valid_list = ", ".join(sorted(_VALID_PERSPECTIVES))
+            raise ValueError(
+                f"'{perspective}' is not a recognised contract role. "
+                f"Please use one of: {valid_list}."
+            )
+        payload["perspective"] = p
 
     await ctx.info("Analyzing clause — generating plain-English explanation (30-90 seconds)...")
 
