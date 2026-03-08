@@ -560,7 +560,7 @@ async def upload_contract(
     # Poll for up to 90s then return early — contract continues processing in
     # the background and user can retrieve it with list_contracts.
     # Poll schedule: 1s for first 15 attempts, then 3s.
-    _large_contract = len(file_bytes) > 3_000_000
+    _large_contract = len(file_bytes) > 500_000  # ~5-6 pages of text PDF
     _poll_attempts = 30  # ~60s max (15×1s + 15×3s)
     _progress_messages = {
         0:  "Contract uploaded. Extracting text and structure...",
@@ -604,10 +604,11 @@ async def upload_contract(
             # Warn for large contracts (quality may be reduced)
             if _large_contract:
                 result["large_contract_notice"] = (
-                    "This contract is large (30+ pages). Analysis covers the full document "
-                    "but very long contracts may have reduced clause-level detail due to "
-                    "AI context limits. For best results, analyze key sections separately "
-                    "using explain_clause."
+                    "This contract is large. Risk analysis and AI summary cover the first "
+                    "~5-6 pages of the document. Substantive clauses deeper in the contract "
+                    "(termination, liability, performance, export controls) may not be fully "
+                    "captured. Use explain_clause to analyse specific sections you are "
+                    "concerned about."
                 )
             # Warn when this was the last credit
             if remaining == 1:
