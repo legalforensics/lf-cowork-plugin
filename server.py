@@ -576,7 +576,7 @@ async def upload_contract(
         if checkout_url:
             msg += f"👉 Purchase a credit: {checkout_url}\n\n"
         else:
-            msg += "Visit https://app.legalforensics.ai/plugin to purchase credits.\n\n"
+            msg += "Visit legalforensics.ai to purchase credits.\n\n"
         msg += "Once payment is complete, come back and retry the upload."
         raise ValueError(msg)
 
@@ -712,7 +712,7 @@ async def upload_contract(
             if remaining == 1:
                 last_credit_url = await _get_checkout_url(api_key)
                 warning = "This was your last credit. "
-                warning += f"Purchase more at: {last_credit_url}" if last_credit_url else "Visit https://app.legalforensics.ai/plugin to purchase credits."
+                warning += f"Purchase more at: {last_credit_url}" if last_credit_url else "Visit legalforensics.ai to purchase credits."
                 result["warning"] = warning
             # Auto-set perspective if provided and valid
             if perspective and perspective.strip() and result.get("contract_id"):
