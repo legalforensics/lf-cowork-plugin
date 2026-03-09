@@ -66,14 +66,14 @@ async def test(session: ClientSession):
     print(f"\ncontract_id: {contract_id}")
 
     # 3. Get risk analysis
-    print("\n--- get_risk_analysis ---")
-    result = await session.call_tool("get_risk_analysis", {"contract_id": contract_id})
+    print("\n--- analyze_risks ---")
+    result = await session.call_tool("analyze_risks", {"contract_id": contract_id})
     text = result.content[0].text
     print(text[:500] + ("..." if len(text) > 500 else ""))
 
     # 4. Get verdict
-    print("\n--- get_verdict ---")
-    result = await session.call_tool("get_verdict", {"contract_id": contract_id})
+    print("\n--- sign_or_negotiate ---")
+    result = await session.call_tool("sign_or_negotiate", {"contract_id": contract_id})
     text = result.content[0].text
     print(text[:500] + ("..." if len(text) > 500 else ""))
 

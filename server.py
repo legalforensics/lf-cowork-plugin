@@ -1,7 +1,7 @@
 """
 LegalForensics MCP Server for Claude Cowork
 
-Exposes 9 tools that proxy to the LF REST API using an API key
+Exposes 7 tools that proxy to the LF REST API using an API key
 passed from the Cowork plugin configuration.
 
 Usage:
@@ -33,9 +33,9 @@ mcp = FastMCP(
     transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
     instructions=(
         "Analyze contracts using LegalForensics AI. "
-        "Use list_contracts to discover contract IDs, then pass the ID "
-        "to analysis tools. Start with get_risk_analysis for a full risk "
-        "overview, get_verdict for a sign/negotiate/walk-away decision, or "
+        "Use my_contracts to discover contract IDs, then pass the ID "
+        "to analysis tools. Start with analyze_risks for a full risk "
+        "overview, sign_or_negotiate for a sign/negotiate/walk-away decision, or "
         "explain_contract for a plain-English explanation."
     ),
 )
@@ -76,7 +76,7 @@ def _get_api_key(ctx: Context) -> str:
 # Tool 1: List contracts
 # ---------------------------------------------------------------------------
 @mcp.tool()
-async def list_contracts(ctx: Context, search: str = "") -> list[dict]:
+async def my_contracts(ctx: Context, search: str = "") -> list[dict]:
     """
     List all contracts in your LegalForensics account.
 
@@ -119,7 +119,7 @@ async def list_contracts(ctx: Context, search: str = "") -> list[dict]:
 # Tool 2: Credits
 # ---------------------------------------------------------------------------
 @mcp.tool()
-async def check_credits(ctx: Context) -> dict:
+async def my_credits(ctx: Context) -> dict:
     """
     Check your LegalForensics credit balance.
 
@@ -189,7 +189,7 @@ _VALID_PERSPECTIVES = {
 
 
 @mcp.tool()
-async def get_risk_analysis(
+async def analyze_risks(
     ctx: Context,
     contract_id: int,
     perspective: str = "",
@@ -202,7 +202,7 @@ async def get_risk_analysis(
     financial/operational/regulatory exposure bands, and recommended next steps.
 
     Args:
-        contract_id: LF contract ID (get from list_contracts).
+        contract_id: LF contract ID (get from my_contracts).
         perspective: Optional. Your role in this contract. Frames all risks and
             recommendations from your side of the deal. Leave blank for neutral.
             Common roles by contract type:
@@ -273,7 +273,7 @@ async def get_risk_analysis(
 # Tool 3: Decision guidance
 # ---------------------------------------------------------------------------
 @mcp.tool()
-async def get_verdict(
+async def sign_or_negotiate(
     ctx: Context,
     contract_id: int,
     perspective: str = "",
@@ -286,10 +286,10 @@ async def get_verdict(
     priorities, structural risk assessment, and top 3 actions.
 
     Args:
-        contract_id: LF contract ID (get from list_contracts).
+        contract_id: LF contract ID (get from my_contracts).
         perspective: Optional. Your role in this contract. Frames the verdict
             and all recommendations from your side of the deal. Leave blank to
-            use the perspective already set via get_risk_analysis, or for neutral.
+            use the perspective already set via analyze_risks, or for neutral.
             Common roles by contract type:
             - NDA: disclosing party, receiving party
             - MSA / SOW: client, service provider, contractor, consultant
@@ -509,7 +509,7 @@ async def upload_contract(
     Provide EITHER a URL to the contract file OR the raw contract text — not both.
 
     After upload completes, returns the contract_id which you can pass directly
-    to get_risk_analysis, get_verdict, explain_contract, etc.
+    to analyze_risks, sign_or_negotiate, explain_contract, etc.
 
     Args:
         file_url: URL to the contract file. Currently supported:
@@ -548,7 +548,8 @@ async def upload_contract(
         perspective: Your role in this contract as free text (e.g. "buyer", "tenant",
                      "employee", "licensee", "franchisee"). Sets the perspective for
                      all subsequent analysis tools. If omitted, analysis is neutral.
-                     You can also change this later using set_perspective.
+                     You can also change this later by passing a new perspective to
+                     analyze_risks or sign_or_negotiate.
     """
     if not title or not title.strip():
         raise ValueError("title is required. Provide a short name for the contract (e.g. 'Acme NDA 2026').")
@@ -656,7 +657,7 @@ async def upload_contract(
 
     # --- Poll status until done ---
     # Poll for up to 90s then return early — contract continues processing in
-    # the background and user can retrieve it with list_contracts.
+    # the background and user can retrieve it with my_contracts.
     # Poll schedule: 1s for first 15 attempts, then 3s.
     _large_contract = len(file_bytes) > 500_000  # ~5-6 pages of text PDF
     _poll_attempts = 30  # ~60s max (15×1s + 15×3s)
@@ -695,8 +696,8 @@ async def upload_contract(
                 "filename": status.get("filename"),
                 "message": (
                     "Contract uploaded and processed. "
-                    "Use the contract_id with get_risk_analysis, "
-                    "get_verdict, or explain_contract."
+                    "Use the contract_id with analyze_risks, "
+                    "sign_or_negotiate, or explain_contract."
                 ),
             }
             # Warn for large contracts (quality may be reduced)
@@ -747,8 +748,8 @@ async def upload_contract(
         "message": (
             "Contract uploaded and being processed in the background. "
             "Large contracts (30+ pages) can take 2–5 minutes. "
-            "Run list_contracts in 2–3 minutes to find your contract, "
-            "then call get_risk_analysis with the contract_id."
+            "Run my_contracts in 2–3 minutes to find your contract, "
+            "then call analyze_risks with the contract_id."
         ),
     }
 
