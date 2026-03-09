@@ -243,6 +243,10 @@ async def get_risk_analysis(
                 json={"party": p},
                 headers=_lf_headers(api_key),
             )
+            if resp.status_code == 404:
+                raise ValueError(f"Contract {contract_id} not found or you don't have access to it.")
+            if resp.status_code == 401:
+                raise ValueError("Invalid or missing API key.")
             resp.raise_for_status()
         await ctx.info(f"Perspective set to '{p}'. Fetching analysis...")
     else:
@@ -316,6 +320,10 @@ async def get_verdict(
                 json={"party": p},
                 headers=_lf_headers(api_key),
             )
+            if resp.status_code == 404:
+                raise ValueError(f"Contract {contract_id} not found or you don't have access to it.")
+            if resp.status_code == 401:
+                raise ValueError("Invalid or missing API key.")
             resp.raise_for_status()
         await ctx.info(f"Perspective set to '{p}'. Generating verdict...")
     else:
