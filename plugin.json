@@ -1,6 +1,6 @@
 {
   "name": "LegalForensics",
-  "description": "Know where you're exposed before you sign. Decision-first contract review that works directly inside Claude — no software to install, no files to upload to a third-party app.\n\nWorks on any business contract: NDAs, MSAs, SOWs, employment, lease, consulting, service, distribution, franchise, partnership, and foundry/semiconductor agreements.\n\n--- HOW TO USE ---\n\n1. UPLOAD YOUR CONTRACT\n   Use upload_contract with either:\n   - A Google Doc share link (file_url)\n   - Pasted contract text (text_content)\n   You'll get back a contract_id. Each upload costs 1 credit.\n\n2. ANALYZE THE CONTRACT\n   With your contract_id, use any combination of:\n   - get_risk_analysis — Full risk breakdown: top risks ranked by severity, exposure drivers, favorable terms, structural assessment, and next steps. Add perspective= (e.g. buyer, seller, employer, disclosing party) to frame analysis from your side.\n   - get_verdict — Clear sign / negotiate / walk away decision with reasoning, priority renegotiation asks, and top 3 actions.\n   - explain_contract — Plain-English walkthrough: what the contract does, who holds the risk, and what a CEO needs to know before signing.\n\n3. ANALYZE A SPECIFIC CLAUSE (no upload needed)\n   Use explain_clause with any pasted clause text for instant plain-English explanation and risk assessment. Free — no credit required.\n\n4. CHECK YOUR BALANCE\n   Use check_credits to see credits remaining and get a purchase link if you need more.\n\n--- CREDITS & PLANS ---\n\n- Each contract upload costs 1 credit\n- explain_clause is free (no credit required)\n- New accounts receive 1 free credit on signup\n- Additional credits: use check_credits to get a purchase link, or visit legalforensics.ai\n- Subscription plan (unlimited uploads + additional tools including playbook review): contact us at legalforensics.ai\n\n--- PERSPECTIVES ---\n\nAll analysis tools accept an optional perspective= parameter to frame results from your role in the contract. Common roles: buyer, seller, employer, employee, landlord, tenant, licensor, licensee, disclosing party, receiving party, foundry, fabless, lender, borrower, and more.\n\nLearn more at legalforensics.ai",
+  "description": "AI that tells you whether a contract is safe to sign — and what to renegotiate if it isn't.\n\nReview contracts directly inside Claude — no separate software, no dashboards, no files uploaded to external apps.\n\nDesigned for founders, operators, and small teams who sign vendor agreements, customer contracts, NDAs, and employment deals without in-house legal support. If you're signing the other party's paper and making the call yourself, this tool is for you.\n\n--- WHAT YOU CAN ASK ---\n\n• \"What are the biggest risks in this contract?\"\n• \"Is this safe for me to sign?\"\n• \"What should I push back on?\"\n• \"Explain this contract in plain English.\"\n• \"Explain this clause — what does it actually mean?\"\n• \"Should I sign, negotiate, or walk away?\"\n\nWorks on any business contract: NDAs, MSAs, SOWs, employment, lease, consulting, service, distribution, franchise, partnership, and foundry/semiconductor agreements.\n\n--- HOW TO USE ---\n\n1. UPLOAD YOUR CONTRACT\n   Share a Google Doc link or paste the contract text.\n   You'll get back a contract_id. Each upload costs 1 credit.\n\n2. GET YOUR ANALYSIS\n   Ask any of the questions above. Behind the scenes:\n   - get_risk_analysis answers \"What are the risks?\" and \"What should I push back on?\"\n   - get_verdict answers \"Should I sign, negotiate, or walk away?\"\n   - explain_contract answers \"Explain this contract in plain English\"\n\n   Add your role (e.g. buyer, seller, employer, disclosing party) to frame results from your side of the deal.\n\n3. ANALYZE A SPECIFIC CLAUSE (no upload needed)\n   Paste any clause text directly. Free — no credit required.\n\n--- CREDITS & PLANS ---\n\n- Each contract upload costs 1 credit\n- Clause analysis is free (no credit required)\n- New accounts receive 1 free credit on signup\n- Additional credits: use check_credits to get a purchase link, or visit legalforensics.ai\n- Subscription plan (unlimited uploads + additional tools including playbook review): contact us at legalforensics.ai\n\n--- PERSPECTIVES ---\n\nAll analysis tools accept an optional perspective to frame results from your role in the contract. Common roles: buyer, seller, employer, employee, landlord, tenant, licensor, licensee, disclosing party, receiving party, foundry, fabless, lender, borrower, and more.\n\nUser Agreement: https://app.legalforensics.ai/assets/docs/user-agreement.pdf\nLearn more at legalforensics.ai",
   "version": "1.0.0",
   "author": "LegalForensics.AI",
   "homepage": "https://app.legalforensics.ai/plugin",
@@ -21,19 +21,19 @@
     },
     {
       "name": "get_risk_analysis",
-      "description": "Full AI risk analysis: risk posture, top risks ranked by severity, exposure drivers, favorable terms, structural assessment, and recommended next steps. Supports perspective framing (buyer, seller, employer, etc.)."
+      "description": "Answers: 'What are the biggest risks?' and 'What should I push back on?' Returns risk posture, top risks ranked by severity, exposure drivers, favorable terms, structural assessment, and next steps. Supports perspective framing (buyer, seller, employer, disclosing party, etc.)."
     },
     {
       "name": "get_verdict",
-      "description": "Decision brief: sign, negotiate, or walk away — with reasoning, priority renegotiation asks, and top 3 actions. Supports perspective framing."
+      "description": "Answers: 'Should I sign, negotiate, or walk away?' Returns a clear verdict with reasoning, priority renegotiation asks, and top 3 actions. Supports perspective framing."
     },
     {
       "name": "explain_contract",
-      "description": "Plain-English narrative walkthrough of the contract: what it does, who holds the risk, and what a non-lawyer needs to understand before signing."
+      "description": "Answers: 'Explain this contract in plain English.' Returns a narrative walkthrough — what it does, who holds the risk, and what a non-lawyer needs to know before signing."
     },
     {
       "name": "explain_clause",
-      "description": "Paste any clause text for instant plain-English explanation and risk assessment. No contract upload needed. Free — no credit required."
+      "description": "Answers: 'What does this clause mean?' Paste any clause text for plain-English explanation and risk assessment. No contract upload needed. Free — no credit required."
     },
     {
       "name": "list_contracts",
@@ -41,7 +41,7 @@
     },
     {
       "name": "check_credits",
-      "description": "Check your credit balance. Returns credits remaining, credits used, and a Stripe purchase link if balance is zero."
+      "description": "Check your credit balance. Returns credits remaining, credits used, and a purchase link if balance is zero."
     }
   ]
 }
