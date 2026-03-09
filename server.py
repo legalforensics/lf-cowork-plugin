@@ -384,7 +384,6 @@ async def explain_contract(ctx: Context, contract_id: int) -> str:
 async def explain_clause(
     ctx: Context,
     clause_text: str,
-    contract_context: str = "",
     perspective: str = "",
 ) -> dict:
     """
@@ -394,8 +393,6 @@ async def explain_clause(
 
     Args:
         clause_text: The raw clause text to analyze.
-        contract_context: Optional. Contract type to improve accuracy
-                          (e.g. "NDA", "MSA", "employment agreement").
         perspective: Optional. Your role in this contract. Frames the explanation
             and negotiation hints from your side of the deal. Leave blank for neutral.
             Common roles by contract type:
@@ -415,8 +412,6 @@ async def explain_clause(
 
     api_key = _get_api_key(ctx)
     payload: dict = {"clause_text": clause_text}
-    if contract_context:
-        payload["context"] = contract_context
     if perspective and perspective.strip():
         p = perspective.strip().lower()
         if p not in _VALID_PERSPECTIVES:
