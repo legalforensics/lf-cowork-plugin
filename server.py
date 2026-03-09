@@ -161,6 +161,8 @@ async def check_credits(ctx: Context) -> dict:
 # Tool 3: Analysis report
 # ---------------------------------------------------------------------------
 _VALID_PERSPECTIVES = {
+    # NDA
+    "disclosing party", "receiving party",
     # buyer / seller
     "buyer", "seller", "purchaser", "vendor",
     # property
