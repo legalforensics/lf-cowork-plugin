@@ -394,8 +394,8 @@ async def explain_clause(
 
     Args:
         clause_text: The raw clause text to analyze.
-        contract_context: Optional. Contract type or governing law to improve
-                          accuracy (e.g. "NDA governed by English law").
+        contract_context: Optional. Contract type to improve accuracy
+                          (e.g. "NDA", "MSA", "employment agreement").
         perspective: Optional. Your role in this contract. Frames the explanation
             and negotiation hints from your side of the deal. Leave blank for neutral.
             Common roles by contract type:
