@@ -1,6 +1,6 @@
 {
   "name": "LegalForensics",
-  "description": "Know where you're exposed before you sign. Decision-first contract review that works directly inside Claude — no software to install, no files uploaded to a third-party app. Paste any contract text or share a Google Doc link and get results in minutes. Works on any business contract — NDAs, MSAs, SOWs, lease, employment, consulting, contractor, service, distribution, franchise, and partnership agreements. Specialized depth for tech and healthcare agreements. Get risk-ranked clause analysis, structural imbalances, specific renegotiation asks, and a clear verdict: sign, negotiate, or walk away. Built for procurement and business teams, not lawyers. Learn more at legalforensics.ai",
+  "description": "Know where you're exposed before you sign. Decision-first contract review that works directly inside Claude — no software to install, no files to upload to a third-party app.\n\nWorks on any business contract: NDAs, MSAs, SOWs, employment, lease, consulting, service, distribution, franchise, partnership, and foundry/semiconductor agreements.\n\n--- HOW TO USE ---\n\n1. UPLOAD YOUR CONTRACT\n   Use upload_contract with either:\n   - A Google Doc share link (file_url)\n   - A public PDF or DOCX URL (file_url)\n   - Pasted contract text (text_content)\n   You'll get back a contract_id. Each upload costs 1 credit.\n\n2. ANALYZE THE CONTRACT\n   With your contract_id, use any combination of:\n   - get_risk_analysis — Full risk breakdown: top risks ranked by severity, exposure drivers, favorable terms, structural assessment, and next steps. Add perspective= (e.g. buyer, seller, employer, disclosing party) to frame analysis from your side.\n   - get_verdict — Clear sign / negotiate / walk away decision with reasoning, priority renegotiation asks, and top 3 actions.\n   - explain_contract — Plain-English walkthrough: what the contract does, who holds the risk, and what a CEO needs to know before signing.\n\n3. ANALYZE A SPECIFIC CLAUSE (no upload needed)\n   Use explain_clause with any pasted clause text for instant plain-English explanation and risk assessment. Free — no credit required.\n\n4. CHECK YOUR BALANCE\n   Use check_credits to see credits remaining and get a purchase link if you need more.\n\n--- CREDITS ---\n\n- Each contract upload costs 1 credit\n- explain_clause is free (no credit required)\n- New accounts receive 1 free credit on signup\n- Purchase additional credits at app.legalforensics.ai/plugin\n\n--- PERSPECTIVES ---\n\nAll analysis tools accept an optional perspective= parameter to frame results from your role in the contract. Common roles: buyer, seller, employer, employee, landlord, tenant, licensor, licensee, disclosing party, receiving party, foundry, fabless, lender, borrower, and more.\n\nLearn more at legalforensics.ai",
   "version": "1.0.0",
   "author": "LegalForensics.AI",
   "homepage": "https://app.legalforensics.ai/plugin",
@@ -12,44 +12,36 @@
   "auth": {
     "type": "api_key",
     "header": "X-LF-API-Key",
-    "instructions": "Sign up at app.legalforensics.ai/plugin — your API key will be shown immediately after signup. Paste it here to connect."
+    "instructions": "Sign up at app.legalforensics.ai/plugin — your API key will be shown immediately after signup. Paste it here to connect. You'll receive 1 free credit to get started."
   },
   "tools": [
     {
-      "name": "list_contracts",
-      "description": "List all contracts in your LF account, optionally filtered by keyword."
-    },
-    {
-      "name": "get_credits",
-      "description": "Check your credit balance. Returns credits remaining and a purchase link if balance is zero."
+      "name": "upload_contract",
+      "description": "Upload a contract via Google Doc link, public PDF/DOCX URL, or pasted text. Returns a contract_id for analysis. Costs 1 credit per upload."
     },
     {
       "name": "get_risk_analysis",
-      "description": "Full AI risk analysis: risk posture, top risks, exposure bands, next steps."
+      "description": "Full AI risk analysis: risk posture, top risks ranked by severity, exposure drivers, favorable terms, structural assessment, and recommended next steps. Supports perspective framing (buyer, seller, employer, etc.)."
     },
     {
       "name": "get_verdict",
-      "description": "Decision brief: sign, negotiate, or walk away — with reasoning."
+      "description": "Decision brief: sign, negotiate, or walk away — with reasoning, priority renegotiation asks, and top 3 actions. Supports perspective framing."
     },
     {
       "name": "explain_contract",
-      "description": "Plain-English summary of what the contract does and where the risk lies."
-    },
-    {
-      "name": "set_perspective",
-      "description": "Re-analyze from a specific perspective (buyer, seller, vendor, etc.)."
-    },
-    {
-      "name": "get_clause_details",
-      "description": "Deep dive on a single clause: risk factors, explanation, AI rewrite."
+      "description": "Plain-English narrative walkthrough of the contract: what it does, who holds the risk, and what a non-lawyer needs to understand before signing."
     },
     {
       "name": "explain_clause",
-      "description": "Explain pasted clause text in plain English without uploading a contract."
+      "description": "Paste any clause text for instant plain-English explanation and risk assessment. No contract upload needed. Free — no credit required."
     },
     {
-      "name": "upload_contract",
-      "description": "Upload a contract via URL or pasted text and get back a contract_id for analysis."
+      "name": "list_contracts",
+      "description": "List all contracts in your LegalForensics account, optionally filtered by keyword."
+    },
+    {
+      "name": "check_credits",
+      "description": "Check your credit balance. Returns credits remaining, credits used, and a Stripe purchase link if balance is zero."
     }
   ]
 }
