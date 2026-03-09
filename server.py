@@ -253,6 +253,10 @@ async def get_risk_analysis(
             headers=_lf_headers(api_key),
             params=params,
         )
+        if resp.status_code == 404:
+            raise ValueError(f"Contract {contract_id} not found or you don't have access to it.")
+        if resp.status_code == 401:
+            raise ValueError("Invalid or missing API key.")
         resp.raise_for_status()
         result = resp.json()
         result["disclaimer"] = DISCLAIMER
@@ -322,6 +326,10 @@ async def get_verdict(
             headers=_lf_headers(api_key),
             params=params,
         )
+        if resp.status_code == 404:
+            raise ValueError(f"Contract {contract_id} not found or you don't have access to it.")
+        if resp.status_code == 401:
+            raise ValueError("Invalid or missing API key.")
         resp.raise_for_status()
         result = resp.json()
         result["disclaimer"] = DISCLAIMER
