@@ -248,12 +248,12 @@ async def analyze_risks(
             if resp.status_code == 401:
                 raise ValueError("Invalid or missing API key.")
             resp.raise_for_status()
-        await ctx.info(f"Perspective set to '{p}'. Fetching analysis...")
+        await ctx.info(f"Perspective set to '{p}'. Generating risk analysis — please wait 30-90 seconds...")
     else:
-        await ctx.info("Fetching risk analysis...")
+        await ctx.info("Generating risk analysis — please wait 30-90 seconds...")
 
     params = {"force_refresh": "true"} if force_refresh else {}
-    async with httpx.AsyncClient(timeout=120) as client:
+    async with httpx.AsyncClient(timeout=180) as client:
         resp = await client.get(
             f"{LF_BASE_URL}/api/contracts/{contract_id}/analysis-report",
             headers=_lf_headers(api_key),
@@ -325,12 +325,12 @@ async def sign_or_negotiate(
             if resp.status_code == 401:
                 raise ValueError("Invalid or missing API key.")
             resp.raise_for_status()
-        await ctx.info(f"Perspective set to '{p}'. Generating verdict...")
+        await ctx.info(f"Perspective set to '{p}'. Generating verdict — please wait 30-90 seconds...")
     else:
-        await ctx.info("Generating verdict...")
+        await ctx.info("Generating verdict — please wait 30-90 seconds...")
 
     params = {"force_refresh": "true"} if force_refresh else {}
-    async with httpx.AsyncClient(timeout=120) as client:
+    async with httpx.AsyncClient(timeout=180) as client:
         resp = await client.get(
             f"{LF_BASE_URL}/api/contracts/{contract_id}/decision-guidance",
             headers=_lf_headers(api_key),
