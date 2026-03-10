@@ -172,7 +172,7 @@ _VALID_PERSPECTIVES = {
     # IP / licensing
     "licensor", "licensee",
     # services
-    "client", "contractor", "service provider", "consultant",
+    "client", "contractor", "service provider", "provider", "consultant",
     # franchise
     "franchisor", "franchisee",
     # finance
