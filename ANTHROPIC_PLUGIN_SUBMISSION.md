@@ -85,8 +85,8 @@ Both stronger-party and weaker-party perspectives produce correctly inverted ana
 - [x] Note contract IDs for inclusion in submission notes
 
 ### 2. Submission Notes / Getting Started Guide
-- [ ] Draft getting started guide for Anthropic tester (see template below)
-- [ ] Include: API key, contract IDs, suggested test prompts
+- [x] Draft getting started guide for Anthropic tester (see template below)
+- [x] Include: API key, contract IDs, suggested test prompts
 
 ### 3. Plugin Submission
 - [ ] Submit `plugin.json` via Anthropic plugin submission form
