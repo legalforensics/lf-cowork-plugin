@@ -49,6 +49,51 @@ def _lf_headers(api_key: str) -> dict:
     }
 
 
+async def _heartbeat_task(ctx: Context, interval: int = 15) -> None:
+    """Sends periodic ctx.info() pings to keep the MCP SSE connection alive."""
+    elapsed = 0
+    _PROGRESS = {
+        15: "Still analyzing... (15s)",
+        30: "Still analyzing... (30s — Bedrock LLM working on your contract)",
+        45: "Almost there... (45s)",
+        60: "Still processing... (60s — large contracts take longer)",
+        75: "Final checks... (75s)",
+        90: "Nearly done... (90s)",
+        120: "Extended analysis in progress... (2 min)",
+        150: "Still running... (2.5 min)",
+    }
+    while True:
+        await asyncio.sleep(interval)
+        elapsed += interval
+        msg = _PROGRESS.get(elapsed, f"Still analyzing... ({elapsed}s elapsed)")
+        try:
+            await ctx.info(msg)
+        except Exception:
+            pass
+
+
+async def _fetch_with_heartbeat(
+    ctx: Context,
+    url: str,
+    headers: dict,
+    params: dict | None = None,
+    timeout: int = 180,
+    heartbeat_interval: int = 15,
+) -> httpx.Response:
+    """
+    GET a URL while sending periodic progress pings via ctx.info().
+
+    Keeps the MCP SSE connection alive on Render (30s idle timeout)
+    during long-running Bedrock analysis calls (30-90s).
+    """
+    beat = asyncio.create_task(_heartbeat_task(ctx, heartbeat_interval))
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            return await client.get(url, headers=headers, params=params or {})
+    finally:
+        beat.cancel()
+
+
 def _get_api_key(ctx: Context) -> str:
     """
     Extract the LF API key from the MCP request context.
@@ -251,20 +296,20 @@ async def analyze_risks(
         await ctx.info("Generating risk analysis — please wait 30-90 seconds...")
 
     params = {"force_refresh": "true"} if force_refresh else {}
-    async with httpx.AsyncClient(timeout=180) as client:
-        resp = await client.get(
-            f"{LF_BASE_URL}/api/contracts/{contract_id}/analysis-report",
-            headers=_lf_headers(api_key),
-            params=params,
-        )
-        if resp.status_code == 404:
-            raise ValueError(f"Contract {contract_id} not found or you don't have access to it.")
-        if resp.status_code == 401:
-            raise ValueError("Invalid or missing API key.")
-        resp.raise_for_status()
-        result = resp.json()
-        result["disclaimer"] = DISCLAIMER
-        return result
+    resp = await _fetch_with_heartbeat(
+        ctx,
+        f"{LF_BASE_URL}/api/contracts/{contract_id}/analysis-report",
+        headers=_lf_headers(api_key),
+        params=params,
+    )
+    if resp.status_code == 404:
+        raise ValueError(f"Contract {contract_id} not found or you don't have access to it.")
+    if resp.status_code == 401:
+        raise ValueError("Invalid or missing API key.")
+    resp.raise_for_status()
+    result = resp.json()
+    result["disclaimer"] = DISCLAIMER
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -331,20 +376,20 @@ async def sign_or_negotiate(
         await ctx.info("Generating verdict — please wait 30-90 seconds...")
 
     params = {"force_refresh": "true"} if force_refresh else {}
-    async with httpx.AsyncClient(timeout=180) as client:
-        resp = await client.get(
-            f"{LF_BASE_URL}/api/contracts/{contract_id}/decision-guidance",
-            headers=_lf_headers(api_key),
-            params=params,
-        )
-        if resp.status_code == 404:
-            raise ValueError(f"Contract {contract_id} not found or you don't have access to it.")
-        if resp.status_code == 401:
-            raise ValueError("Invalid or missing API key.")
-        resp.raise_for_status()
-        result = resp.json()
-        result["disclaimer"] = DISCLAIMER
-        return result
+    resp = await _fetch_with_heartbeat(
+        ctx,
+        f"{LF_BASE_URL}/api/contracts/{contract_id}/decision-guidance",
+        headers=_lf_headers(api_key),
+        params=params,
+    )
+    if resp.status_code == 404:
+        raise ValueError(f"Contract {contract_id} not found or you don't have access to it.")
+    if resp.status_code == 401:
+        raise ValueError("Invalid or missing API key.")
+    resp.raise_for_status()
+    result = resp.json()
+    result["disclaimer"] = DISCLAIMER
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -363,19 +408,20 @@ async def explain_contract(ctx: Context, contract_id: int) -> str:
     """
     api_key = _get_api_key(ctx)
     await ctx.info("Generating plain-English explanation — this takes 30-60 seconds...")
-    async with httpx.AsyncClient(timeout=120) as client:
-        resp = await client.get(
-            f"{LF_BASE_URL}/api/contracts/{contract_id}/narrative-walkthrough",
-            headers=_lf_headers(api_key),
-        )
-        if resp.status_code == 404:
-            raise ValueError(f"Contract {contract_id} not found or you don't have access to it.")
-        if resp.status_code == 401:
-            raise ValueError("Invalid or missing API key.")
-        resp.raise_for_status()
-        data = resp.json()
-        narrative = data.get("narrative") or str(data)
-        return f"{narrative}\n\n---\n{DISCLAIMER}"
+    resp = await _fetch_with_heartbeat(
+        ctx,
+        f"{LF_BASE_URL}/api/contracts/{contract_id}/narrative-walkthrough",
+        headers=_lf_headers(api_key),
+        timeout=120,
+    )
+    if resp.status_code == 404:
+        raise ValueError(f"Contract {contract_id} not found or you don't have access to it.")
+    if resp.status_code == 401:
+        raise ValueError("Invalid or missing API key.")
+    resp.raise_for_status()
+    data = resp.json()
+    narrative = data.get("narrative") or str(data)
+    return f"{narrative}\n\n---\n{DISCLAIMER}"
 
 
 # ---------------------------------------------------------------------------
@@ -428,14 +474,18 @@ async def explain_clause(
 
     await ctx.info("Analyzing clause — generating plain-English explanation (30-90 seconds)...")
 
-    async with httpx.AsyncClient(timeout=180) as client:
-        resp = await client.post(
-            f"{LF_BASE_URL}/api/plugin/explain-clause",
-            json=payload,
-            headers=_lf_headers(api_key),
-        )
-        resp.raise_for_status()
-        return resp.json()
+    beat = asyncio.create_task(_heartbeat_task(ctx))
+    try:
+        async with httpx.AsyncClient(timeout=180) as client:
+            resp = await client.post(
+                f"{LF_BASE_URL}/api/plugin/explain-clause",
+                json=payload,
+                headers=_lf_headers(api_key),
+            )
+            resp.raise_for_status()
+            return resp.json()
+    finally:
+        beat.cancel()
 
 
 # ---------------------------------------------------------------------------
