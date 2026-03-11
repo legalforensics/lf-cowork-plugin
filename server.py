@@ -19,11 +19,10 @@ import os
 import httpx
 from mcp.server.fastmcp import FastMCP, Context
 from mcp.server.fastmcp.server import TransportSecuritySettings
-from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-from starlette.routing import Mount, Route
+from starlette.routing import Route
 
 LF_BASE_URL = os.environ.get("LF_BASE_URL", "https://app.legalforensics.ai").rstrip("/")
 PORT = int(os.environ.get("PORT", 8001))
@@ -859,15 +858,13 @@ if __name__ == "__main__":
     print(f"LF API base: {LF_BASE_URL}")
 
     mcp.settings.port = PORT
-    mcp_app = mcp.streamable_http_app()
+    app = mcp.streamable_http_app()
 
-    # Wrap MCP app with a discovery endpoint for OAuth 2.0
-    app = Starlette(
-        routes=[
-            Route("/.well-known/oauth-authorization-server", oauth_discovery),
-            Mount("/", app=mcp_app),
-        ]
-    )
+    # Inject OAuth 2.0 discovery route directly into the FastMCP Starlette router.
+    # Starlette Router.routes is a plain list — inserting after init is safe because
+    # routes are matched dynamically on each request.
+    app.router.routes.insert(0, Route("/.well-known/oauth-authorization-server", oauth_discovery))
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
