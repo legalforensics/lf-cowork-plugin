@@ -1,0 +1,165 @@
+# LegalForensics Plugin — Anthropic Submission
+
+## Status: Ready for Submission
+
+---
+
+## Plugin Details
+
+| Field | Value |
+|---|---|
+| Plugin name | LegalForensics |
+| Version | 1.0.0 |
+| Author | LegalForensics.AI |
+| Homepage | https://app.legalforensics.ai/plugin |
+| MCP server | https://lf-cowork-plugin.onrender.com/mcp |
+| Transport | streamable-http |
+| Auth | API key (`X-LF-API-Key` header) |
+| Plugin manifest | `plugin.json` |
+| Server code | `server.py` |
+
+---
+
+## Tools
+
+| Tool | Description |
+|---|---|
+| `upload_contract` | Upload via Google Doc link or pasted text. Costs 1 credit. Returns `contract_id`. |
+| `analyze_risks` | Full risk analysis — risk posture, top risks, exposure bands, favorable terms, structural assessment. Supports perspective. |
+| `sign_or_negotiate` | Sign / negotiate / walk away verdict with reasoning and priority asks. Supports perspective. |
+| `explain_contract` | Plain-English narrative walkthrough of a full contract. |
+| `explain_clause` | Plain-English explanation of a pasted clause. Free, no credit required. Supports perspective. |
+| `my_contracts` | List all contracts in account, optionally filtered by keyword. |
+| `my_credits` | Check credit balance. Returns purchase link if balance is zero. |
+
+---
+
+## Testing Results
+
+All tools tested end-to-end. Both perspectives tested for all contract types.
+
+### Contract Types Tested
+
+| Contract Type | upload | analyze_risks | sign_or_negotiate | explain_contract | explain_clause |
+|---|---|---|---|---|---|
+| NDA | ✓ | ✓ both perspectives | ✓ both perspectives | ✓ | ✓ both perspectives |
+| MSA | ✓ | ✓ both perspectives | ✓ both perspectives | ✓ | — |
+| SOW / Project | ✓ | ✓ both perspectives | ✓ both perspectives | ✓ | — |
+| Employment | ✓ | ✓ both perspectives | ✓ both perspectives | ✓ | — |
+| Lease | ✓ | ✓ both perspectives | ✓ both perspectives | ✓ | ✓ both perspectives |
+| IP / License | ✓ | ✓ both perspectives | ✓ both perspectives | ✓ | — |
+| Foundry | ✓ | ✓ both perspectives | ✓ both perspectives | ✓ | — |
+| Franchise | ✓ | ✓ both perspectives | ✓ both perspectives | ✓ | — |
+| Data Processing | ✓ | ✓ both perspectives | ✓ both perspectives | ✓ | — |
+| Supply Chain | ✓ | ✓ both perspectives | ✓ both perspectives | ✓ | — |
+
+### Contract-Agnostic Tools
+
+| Tool | Status |
+|---|---|
+| `explain_clause` — neutral | ✓ |
+| `explain_clause` — with perspective | ✓ |
+| `my_contracts` — list | ✓ |
+| `my_contracts` — search filter | ✓ |
+| `my_credits` — with balance | ✓ |
+| `my_credits` — zero balance + purchase link | ✓ |
+
+### Perspective Framing Verified
+
+Both stronger-party and weaker-party perspectives produce correctly inverted analysis:
+- verdict, favorable_terms, risk_items, top_3_actions, decision_summary all flip correctly
+- plain_english_summary uses correct "you" framing for the selected role
+- Tested representative pairs: landlord/tenant, employer/employee, franchisor/franchisee, data controller/data processor, buyer/supplier
+
+---
+
+## Next Steps (In Order)
+
+### 1. Tester Account Setup
+- [x] Create dedicated test account: `amit+anthropic@legalforensics.ai`
+- [x] Generate API key via LF app → Settings → API Keys
+- [x] Manually set credit balance to 5 in DB
+- [x] Pre-load 2 sample contracts:
+  - Contract 1: NDA — contract_id: 200
+  - Contract 2: Employment Agreement — contract_id: 201
+- [x] Note contract IDs for inclusion in submission notes
+
+### 2. Submission Notes / Getting Started Guide
+- [ ] Draft getting started guide for Anthropic tester (see template below)
+- [ ] Include: API key, contract IDs, suggested test prompts
+
+### 3. Plugin Submission
+- [ ] Submit `plugin.json` via Anthropic plugin submission form
+- [ ] Attach getting started guide
+- [ ] Provide tester account credentials separately (not in plugin.json)
+
+---
+
+## Tester Getting Started Guide (Draft)
+
+### Credentials
+- **API key**: `lf_016ebbcbcd6eadcb5ea27d95bd2f50a8a69ba416`
+- Sign up page (for reference): https://app.legalforensics.ai/plugin
+
+### Configure the Plugin
+Paste the API key above into the LegalForensics plugin configuration field in Claude.
+
+### Quick Tests (No Upload Needed)
+
+**1. Check credits**
+> "How many credits do I have?"
+
+**2. Explain a clause (free, no credit)**
+> "Explain this clause: 'The vendor shall not be liable for any indirect, incidental, or consequential damages arising out of or related to this agreement, even if advised of the possibility of such damages.'"
+
+> With perspective: "Explain this clause from the buyer's perspective: [same clause]"
+
+**3. List pre-loaded contracts**
+> "Show me my contracts"
+
+### Full Analysis Tests (Uses Credits)
+
+**Pre-loaded Contract 1 — NDA (contract_id: 200)**
+> "Analyze the risks in contract 200"
+> "Analyze the risks in contract 200 from the disclosing party's perspective"
+> "Should I sign contract 200 as the receiving party?"
+> "Explain contract 200 in plain English"
+
+**Pre-loaded Contract 2 — Employment Agreement (contract_id: 201)**
+> "Analyze the risks in contract 201 from the employer's perspective"
+> "Analyze the risks in contract 201 from the employee's perspective"
+> "Should I sign contract 201 as the employee?"
+
+### Upload Test (Uses 1 Credit)
+> "Analyze this contract: [paste any contract text]"
+
+---
+
+## Supported Perspective Roles
+
+Roles grouped by side of the deal:
+
+| Contract Type | Side A | Side B |
+|---|---|---|
+| NDA | disclosing party | receiving party |
+| MSA | client | vendor, service provider |
+| SOW / project | client | contractor, consultant, subcontractor |
+| Employment | employer | employee, executive |
+| Lease | landlord, lessor | tenant, lessee |
+| IP / License | licensor | licensee |
+| Supply chain | buyer | seller, supplier, distributor, manufacturer |
+| Foundry | foundry | fabless |
+| Finance | lender, investor | borrower |
+| Data processing | data controller | data processor |
+| Franchise | franchisor | franchisee |
+
+---
+
+## Known Limitations
+
+- Google Doc links must be shared publicly ("Anyone with the link")
+- Google Drive file links not supported (use Google Docs links or paste text)
+- Large contracts (30+ pages) are analyzed on the first ~40,000 characters
+- Analysis takes 30–90 seconds (Bedrock Claude claude-3-5-sonnet-20241022-v2:0 on AWS)
+- First analysis of a contract is cached; subsequent calls use cache unless `force_refresh=true`
+- Supply chain contract type auto-classified as "Distribution Agreement" — functionally correct
