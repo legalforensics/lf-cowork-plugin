@@ -244,9 +244,15 @@ entered in the plugin configuration field in Claude.
 
 ### Authentication
 
-**Current status**: API key auth (`X-LF-API-Key` header). OAuth 2.0 is on the roadmap.
-The form requires OAuth 2.0 for authenticated servers — implement OAuth before resubmitting.
-See OAuth implementation plan in this doc.
+**Current status**: OAuth 2.0 implemented (Authorization Code + PKCE via AWS Cognito).
+Server also accepts `X-LF-API-Key` header for legacy API key users.
+
+**OAuth endpoints (Cognito)**
+- Authorization: `https://us-east-1aassqgtdr.auth.us-east-1.amazoncognito.com/oauth2/authorize`
+- Token: `https://us-east-1aassqgtdr.auth.us-east-1.amazoncognito.com/oauth2/token`
+- Discovery: `https://lf-cowork-plugin.onrender.com/.well-known/oauth-authorization-server`
+- Scopes: `openid email profile`
+- PKCE: S256, no client secret
 
 **Auth Type (once OAuth implemented)**
 `OAuth 2.0`
@@ -255,10 +261,10 @@ See OAuth implementation plan in this doc.
 `Static OAuth Client`
 
 **Static Client ID**
-`[TO BE FILLED after Cognito app client created]`
+`4q850suef3bj1pde4bc5gp75lt`
 
 **Static Client Secret**
-`[TO BE FILLED — or PKCE only, no secret]`
+`(none — PKCE only, no client secret)`
 
 ### Transport
 

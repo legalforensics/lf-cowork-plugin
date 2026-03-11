@@ -1,15 +1,17 @@
 """
-LegalForensics MCP Server for Claude Cowork
+LegalForensics MCP Server for Claude Connectors
 
-Exposes 7 tools that proxy to the LF REST API using an API key
-passed from the Cowork plugin configuration.
+Exposes 7 tools that proxy to the LF REST API.
+
+Auth: supports two modes (both pass through to the LF backend):
+  1. OAuth 2.0 Bearer token  — Authorization: Bearer <cognito_access_token>
+  2. API key (legacy)        — X-LF-API-Key: lf_<key>
+
+OAuth 2.0 discovery: GET /.well-known/oauth-authorization-server
+  Returns Cognito endpoints + client_id for Claude to drive the auth code + PKCE flow.
 
 Usage:
-  LF_BASE_URL=https://api.legalforensics.ai python server.py
-
-The API key is configured by each user in their Cowork plugin settings.
-Cowork passes it to the MCP server via the X-LF-API-Key header (per plugin.json).
-The server extracts it from the request context and forwards it to the LF API.
+  LF_BASE_URL=https://app.legalforensics.ai python server.py
 """
 
 import asyncio
@@ -17,10 +19,22 @@ import os
 import httpx
 from mcp.server.fastmcp import FastMCP, Context
 from mcp.server.fastmcp.server import TransportSecuritySettings
+from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.routing import Mount, Route
 
 LF_BASE_URL = os.environ.get("LF_BASE_URL", "https://app.legalforensics.ai").rstrip("/")
 PORT = int(os.environ.get("PORT", 8001))
+
+# ---------------------------------------------------------------------------
+# Cognito OAuth 2.0 constants
+# ---------------------------------------------------------------------------
+COGNITO_REGION = "us-east-1"
+COGNITO_USER_POOL_ID = "us-east-1_AasSqgTdR"
+COGNITO_DOMAIN = "us-east-1aassqgtdr.auth.us-east-1.amazoncognito.com"
+COGNITO_CLIENT_ID = "4q850suef3bj1pde4bc5gp75lt"
 
 DISCLAIMER = (
     "⚠️ AI-generated analysis. For informational purposes only — not legal advice. "
@@ -41,12 +55,71 @@ mcp = FastMCP(
 )
 
 
-def _lf_headers(api_key: str) -> dict:
-    """Build request headers for the LF API."""
-    return {
-        "X-LF-API-Key": api_key,
-        "Content-Type": "application/json",
-    }
+# ---------------------------------------------------------------------------
+# OAuth 2.0 discovery endpoint (RFC 8414)
+# ---------------------------------------------------------------------------
+async def oauth_discovery(request: Request) -> JSONResponse:
+    """
+    Returns OAuth 2.0 Authorization Server Metadata so Claude can drive
+    the authorization code + PKCE flow against AWS Cognito.
+    """
+    return JSONResponse({
+        "issuer": f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com/{COGNITO_USER_POOL_ID}",
+        "authorization_endpoint": f"https://{COGNITO_DOMAIN}/oauth2/authorize",
+        "token_endpoint": f"https://{COGNITO_DOMAIN}/oauth2/token",
+        "jwks_uri": (
+            f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com"
+            f"/{COGNITO_USER_POOL_ID}/.well-known/jwks.json"
+        ),
+        "scopes_supported": ["openid", "email", "profile"],
+        "response_types_supported": ["code"],
+        "grant_types_supported": ["authorization_code", "refresh_token"],
+        "token_endpoint_auth_methods_supported": ["none"],
+        "code_challenge_methods_supported": ["S256"],
+        "client_id": COGNITO_CLIENT_ID,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Auth helpers
+# ---------------------------------------------------------------------------
+def _get_auth_headers(ctx: Context) -> dict:
+    """
+    Extract auth credentials from the MCP request context.
+
+    Supports two modes:
+      1. OAuth 2.0: Authorization: Bearer <cognito_access_token>
+      2. API key:   X-LF-API-Key: lf_<key>
+
+    Returns a dict ready to merge into httpx request headers.
+    """
+    try:
+        headers = ctx.request_context.request.headers
+
+        # OAuth 2.0 Bearer token
+        auth_header = headers.get("authorization") or headers.get("Authorization")
+        if auth_header and auth_header.lower().startswith("bearer "):
+            token = auth_header[7:]  # strip "Bearer "
+            return {"Authorization": f"Bearer {token}"}
+
+        # Legacy API key
+        api_key = headers.get("x-lf-api-key") or headers.get("X-LF-API-Key")
+        if api_key:
+            return {"X-LF-API-Key": api_key}
+
+    except AttributeError:
+        pass
+
+    raise ValueError(
+        "No LegalForensics credentials found. "
+        "Sign in via OAuth or generate an API key at legalforensics.ai → Settings → API Keys, "
+        "then enter it in the plugin configuration."
+    )
+
+
+def _lf_headers(auth: dict) -> dict:
+    """Merge auth headers with Content-Type for JSON requests."""
+    return {**auth, "Content-Type": "application/json"}
 
 
 async def _heartbeat_task(ctx: Context, interval: int = 15) -> None:
@@ -94,29 +167,6 @@ async def _fetch_with_heartbeat(
         beat.cancel()
 
 
-def _get_api_key(ctx: Context) -> str:
-    """
-    Extract the LF API key from the MCP request context.
-
-    In Cowork, the user configures their API key in plugin settings.
-    Cowork forwards it to this MCP server via the X-LF-API-Key HTTP header.
-    FastMCP exposes request headers via ctx.request_context.request.headers.
-    """
-    try:
-        headers = ctx.request_context.request.headers
-        api_key = headers.get("x-lf-api-key") or headers.get("X-LF-API-Key")
-        if api_key:
-            return api_key
-    except AttributeError:
-        pass
-
-    raise ValueError(
-        "No LegalForensics API key found. "
-        "Generate one at legalforensics.ai → Settings → API Keys, "
-        "then enter it in the Cowork plugin configuration."
-    )
-
-
 # ---------------------------------------------------------------------------
 # Tool 1: List contracts
 # ---------------------------------------------------------------------------
@@ -131,11 +181,11 @@ async def my_contracts(ctx: Context, search: str = "") -> list[dict]:
     Returns a list of contracts with id, title, contract_type, and status.
     Use the returned 'id' values with the other analysis tools.
     """
-    api_key = _get_api_key(ctx)
+    auth = _get_auth_headers(ctx)
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(
             f"{LF_BASE_URL}/api/contracts/my-contracts",
-            headers=_lf_headers(api_key),
+            headers=_lf_headers(auth),
         )
         resp.raise_for_status()
         contracts = resp.json().get("contracts", [])
@@ -171,11 +221,11 @@ async def my_credits(ctx: Context) -> dict:
     Each contract upload costs 1 credit. Subscription users have unlimited uploads.
     Returns credits remaining, credits used, and a purchase link if balance is zero.
     """
-    api_key = _get_api_key(ctx)
+    auth = _get_auth_headers(ctx)
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(
             f"{LF_BASE_URL}/api/stripe/credits",
-            headers=_lf_headers(api_key),
+            headers=_lf_headers(auth),
         )
         resp.raise_for_status()
         credits = resp.json()
@@ -191,7 +241,7 @@ async def my_credits(ctx: Context) -> dict:
     }
 
     if remaining == 0:
-        checkout_url = await _get_checkout_url(api_key)
+        checkout_url = await _get_checkout_url(auth)
         result["message"] = "No credits remaining."
         if checkout_url:
             result["purchase_url"] = checkout_url
@@ -268,7 +318,7 @@ async def analyze_risks(
             discarding the cached result. Use when switching perspective for
             the first time or after a contract is re-uploaded.
     """
-    api_key = _get_api_key(ctx)
+    auth = _get_auth_headers(ctx)
 
     # Validate and set perspective before fetching analysis
     if perspective and perspective.strip():
@@ -284,12 +334,12 @@ async def analyze_risks(
             resp = await client.post(
                 f"{LF_BASE_URL}/api/contracts/{contract_id}/perspective",
                 json={"party": p},
-                headers=_lf_headers(api_key),
+                headers=_lf_headers(auth),
             )
             if resp.status_code == 404:
                 raise ValueError(f"Contract {contract_id} not found or you don't have access to it.")
             if resp.status_code == 401:
-                raise ValueError("Invalid or missing API key.")
+                raise ValueError("Invalid or missing credentials.")
             resp.raise_for_status()
         await ctx.info(f"Perspective set to '{p}'. Generating risk analysis — please wait 30-90 seconds...")
     else:
@@ -299,13 +349,13 @@ async def analyze_risks(
     resp = await _fetch_with_heartbeat(
         ctx,
         f"{LF_BASE_URL}/api/contracts/{contract_id}/analysis-report",
-        headers=_lf_headers(api_key),
+        headers=_lf_headers(auth),
         params=params,
     )
     if resp.status_code == 404:
         raise ValueError(f"Contract {contract_id} not found or you don't have access to it.")
     if resp.status_code == 401:
-        raise ValueError("Invalid or missing API key.")
+        raise ValueError("Invalid or missing credentials.")
     resp.raise_for_status()
     result = resp.json()
     result["disclaimer"] = DISCLAIMER
@@ -313,7 +363,7 @@ async def analyze_risks(
 
 
 # ---------------------------------------------------------------------------
-# Tool 3: Decision guidance
+# Tool 4: Decision guidance
 # ---------------------------------------------------------------------------
 @mcp.tool()
 async def sign_or_negotiate(
@@ -350,7 +400,7 @@ async def sign_or_negotiate(
         force_refresh: Set to true to regenerate the verdict from scratch,
             discarding the cached result.
     """
-    api_key = _get_api_key(ctx)
+    auth = _get_auth_headers(ctx)
 
     if perspective and perspective.strip():
         p = perspective.strip().lower()
@@ -364,12 +414,12 @@ async def sign_or_negotiate(
             resp = await client.post(
                 f"{LF_BASE_URL}/api/contracts/{contract_id}/perspective",
                 json={"party": p},
-                headers=_lf_headers(api_key),
+                headers=_lf_headers(auth),
             )
             if resp.status_code == 404:
                 raise ValueError(f"Contract {contract_id} not found or you don't have access to it.")
             if resp.status_code == 401:
-                raise ValueError("Invalid or missing API key.")
+                raise ValueError("Invalid or missing credentials.")
             resp.raise_for_status()
         await ctx.info(f"Perspective set to '{p}'. Generating verdict — please wait 30-90 seconds...")
     else:
@@ -379,13 +429,13 @@ async def sign_or_negotiate(
     resp = await _fetch_with_heartbeat(
         ctx,
         f"{LF_BASE_URL}/api/contracts/{contract_id}/decision-guidance",
-        headers=_lf_headers(api_key),
+        headers=_lf_headers(auth),
         params=params,
     )
     if resp.status_code == 404:
         raise ValueError(f"Contract {contract_id} not found or you don't have access to it.")
     if resp.status_code == 401:
-        raise ValueError("Invalid or missing API key.")
+        raise ValueError("Invalid or missing credentials.")
     resp.raise_for_status()
     result = resp.json()
     result["disclaimer"] = DISCLAIMER
@@ -393,7 +443,7 @@ async def sign_or_negotiate(
 
 
 # ---------------------------------------------------------------------------
-# Tool 4: Narrative walkthrough
+# Tool 5: Narrative walkthrough
 # ---------------------------------------------------------------------------
 @mcp.tool()
 async def explain_contract(ctx: Context, contract_id: int) -> str:
@@ -406,18 +456,18 @@ async def explain_contract(ctx: Context, contract_id: int) -> str:
     Args:
         contract_id: LF contract ID.
     """
-    api_key = _get_api_key(ctx)
+    auth = _get_auth_headers(ctx)
     await ctx.info("Generating plain-English explanation — this takes 30-60 seconds...")
     resp = await _fetch_with_heartbeat(
         ctx,
         f"{LF_BASE_URL}/api/contracts/{contract_id}/narrative-walkthrough",
-        headers=_lf_headers(api_key),
+        headers=_lf_headers(auth),
         timeout=120,
     )
     if resp.status_code == 404:
         raise ValueError(f"Contract {contract_id} not found or you don't have access to it.")
     if resp.status_code == 401:
-        raise ValueError("Invalid or missing API key.")
+        raise ValueError("Invalid or missing credentials.")
     resp.raise_for_status()
     data = resp.json()
     narrative = data.get("narrative") or str(data)
@@ -425,7 +475,7 @@ async def explain_contract(ctx: Context, contract_id: int) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Tool 7: Explain clause (ad-hoc, no contract upload needed)
+# Tool 6: Explain clause (ad-hoc, no contract upload needed)
 # ---------------------------------------------------------------------------
 @mcp.tool()
 async def explain_clause(
@@ -460,7 +510,7 @@ async def explain_clause(
     if not clause_text or not clause_text.strip():
         raise ValueError("clause_text cannot be empty.")
 
-    api_key = _get_api_key(ctx)
+    auth = _get_auth_headers(ctx)
     payload: dict = {"clause_text": clause_text}
     if perspective and perspective.strip():
         p = perspective.strip().lower()
@@ -480,7 +530,7 @@ async def explain_clause(
             resp = await client.post(
                 f"{LF_BASE_URL}/api/plugin/explain-clause",
                 json=payload,
-                headers=_lf_headers(api_key),
+                headers=_lf_headers(auth),
             )
             resp.raise_for_status()
             return resp.json()
@@ -489,28 +539,28 @@ async def explain_clause(
 
 
 # ---------------------------------------------------------------------------
-# Tool 9: Upload contract
+# Tool 7: Upload contract
 # ---------------------------------------------------------------------------
-async def _get_checkout_url(api_key: str) -> str | None:
+async def _get_checkout_url(auth: dict) -> str | None:
     """Best-effort Stripe checkout URL fetch."""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.post(
                 f"{LF_BASE_URL}/api/stripe/create-checkout",
-                headers=_lf_headers(api_key),
+                headers=_lf_headers(auth),
             )
             return resp.json().get("url")
     except Exception:
         return None
 
 
-async def _refund_credit(api_key: str) -> None:
+async def _refund_credit(auth: dict) -> None:
     """Best-effort credit refund — called when upload or processing fails."""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             await client.post(
                 f"{LF_BASE_URL}/api/stripe/credits/refund",
-                headers=_lf_headers(api_key),
+                headers=_lf_headers(auth),
             )
     except Exception:
         pass  # Logged server-side — don't mask the original error
@@ -607,13 +657,13 @@ async def upload_contract(
     if file_url and text_content:
         raise ValueError("Provide only one of file_url or text_content, not both.")
 
-    api_key = _get_api_key(ctx)
+    auth = _get_auth_headers(ctx)
 
     # --- Credit check: ensure user has credits before expensive processing ---
     async with httpx.AsyncClient(timeout=10) as client:
         credit_resp = await client.get(
             f"{LF_BASE_URL}/api/stripe/credits",
-            headers=_lf_headers(api_key),
+            headers=_lf_headers(auth),
         )
         credit_resp.raise_for_status()
         credits = credit_resp.json()
@@ -621,7 +671,7 @@ async def upload_contract(
 
     # remaining == -1 means subscription user (unlimited) — skip credit gate
     if remaining == 0:
-        checkout_url = await _get_checkout_url(api_key)
+        checkout_url = await _get_checkout_url(auth)
         msg = "You have no credits remaining.\n\n"
         if checkout_url:
             msg += f"👉 Purchase a credit: {checkout_url}\n\n"
@@ -670,7 +720,7 @@ async def upload_contract(
             async with httpx.AsyncClient(timeout=10) as client:
                 await client.post(
                     f"{LF_BASE_URL}/api/stripe/credits/deduct",
-                    headers=_lf_headers(api_key),
+                    headers=_lf_headers(auth),
                 )
         except Exception as e:
             raise RuntimeError(f"Failed to reserve credit before upload: {e}")
@@ -689,19 +739,19 @@ async def upload_contract(
                 f"{LF_BASE_URL}/api/contracts/upload",
                 files={"file": (filename, file_bytes, content_type)},
                 data=form_data,
-                headers={"X-LF-API-Key": api_key},
+                headers=auth,  # no Content-Type — httpx sets multipart boundary
             )
             resp.raise_for_status()
             body = resp.json()
     except Exception as e:
         if not is_subscription:
-            await _refund_credit(api_key)
+            await _refund_credit(auth)
         raise RuntimeError(f"Upload failed: {e}." + ("" if is_subscription else " Your credit has been refunded."))
 
     contract_uuid = body.get("contract_uuid")
     if not contract_uuid:
         if not is_subscription:
-            await _refund_credit(api_key)
+            await _refund_credit(auth)
         return body
 
     # --- Poll status until done ---
@@ -719,7 +769,6 @@ async def upload_contract(
 
     await ctx.info("Contract received. Starting AI analysis pipeline...")
 
-    poll_headers = {"X-LF-API-Key": api_key}
     status_url = f"{LF_BASE_URL}/api/contracts/{contract_uuid}/status"
 
     for attempt in range(_poll_attempts):
@@ -731,7 +780,7 @@ async def upload_contract(
 
         async with httpx.AsyncClient(timeout=30) as client:
             try:
-                sr = await client.get(status_url, headers=poll_headers)
+                sr = await client.get(status_url, headers=auth)
                 sr.raise_for_status()
                 status = sr.json()
             except httpx.HTTPError:
@@ -760,7 +809,7 @@ async def upload_contract(
                 )
             # Warn when this was the last credit
             if remaining == 1:
-                last_credit_url = await _get_checkout_url(api_key)
+                last_credit_url = await _get_checkout_url(auth)
                 warning = "This was your last credit. "
                 warning += f"Purchase more at: {last_credit_url}" if last_credit_url else "Visit legalforensics.ai to purchase credits."
                 result["warning"] = warning
@@ -773,7 +822,7 @@ async def upload_contract(
                             await pclient.post(
                                 f"{LF_BASE_URL}/api/contracts/{result['contract_id']}/perspective",
                                 json={"party": p},
-                                headers=_lf_headers(api_key),
+                                headers=_lf_headers(auth),
                             )
                         result["perspective"] = p
                     except Exception:
@@ -783,7 +832,7 @@ async def upload_contract(
 
         if status.get("status") == "failed":
             if not is_subscription:
-                await _refund_credit(api_key)
+                await _refund_credit(auth)
             raise RuntimeError(
                 f"Contract processing failed: {status.get('error', 'unknown error')}."
                 + ("" if is_subscription else " Your credit has been refunded.")
@@ -805,10 +854,20 @@ async def upload_contract(
 
 if __name__ == "__main__":
     import uvicorn
+
     print(f"Starting LegalForensics MCP server on port {PORT}")
     print(f"LF API base: {LF_BASE_URL}")
+
     mcp.settings.port = PORT
-    app = mcp.streamable_http_app()
+    mcp_app = mcp.streamable_http_app()
+
+    # Wrap MCP app with a discovery endpoint for OAuth 2.0
+    app = Starlette(
+        routes=[
+            Route("/.well-known/oauth-authorization-server", oauth_discovery),
+            Mount("/", app=mcp_app),
+        ]
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],

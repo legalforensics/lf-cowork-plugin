@@ -10,9 +10,12 @@
     "url": "https://lf-cowork-plugin.onrender.com/mcp"
   },
   "auth": {
-    "type": "api_key",
-    "header": "X-LF-API-Key",
-    "instructions": "Sign up at app.legalforensics.ai/plugin — your API key will be shown immediately after signup. Paste it here to connect. You will receive 1 free credit to get started."
+    "type": "oauth2",
+    "authorization_url": "https://us-east-1aassqgtdr.auth.us-east-1.amazoncognito.com/oauth2/authorize",
+    "token_url": "https://us-east-1aassqgtdr.auth.us-east-1.amazoncognito.com/oauth2/token",
+    "scopes": ["openid", "email", "profile"],
+    "client_id": "4q850suef3bj1pde4bc5gp75lt",
+    "discovery_url": "https://lf-cowork-plugin.onrender.com/.well-known/oauth-authorization-server"
   },
   "tools": [
     {
