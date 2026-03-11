@@ -155,6 +155,117 @@ Roles grouped by side of the deal:
 
 ---
 
+## Connectors Directory Submission Form (Google Form Answers)
+
+Submission form: https://docs.google.com/forms/d/e/1FAIpQLSeafJF2NDI7oYx1r8o0ycivCSVLNq92Mpc1FPxMKSw1CzDkqA/viewform
+
+### Company Information
+
+| Field | Answer |
+|---|---|
+| Company/Organization Name | LegalForensics.AI |
+| Company/Organization URL | legalforensics.ai |
+| Primary Contact Name | Amit Nagar |
+| Primary Contact Email | amit@legalforensics.ai |
+| Primary Contact Role | Founder |
+| Anthropic Point of Contact | — |
+
+### Server Details
+
+**MCP Server Name**
+`LegalForensics`
+
+**URL Type**
+`Universal URL`
+
+**MCP Server URL**
+`https://lf-cowork-plugin.onrender.com/mcp`
+
+**Tagline (55 chars)**
+`AI contract review — risks, verdict, plain English`
+
+**MCP Server Description (50-100 words)**
+```
+LegalForensics analyzes contracts directly inside Claude. Upload any MSA, NDA, SOW,
+employment, or lease agreement and get a full risk analysis, a sign/negotiate/walk away
+verdict, and a plain-English walkthrough — without leaving your conversation. Designed
+for founders, operators, and small teams who sign contracts without in-house legal support.
+Supports perspective framing (buyer, seller, employer, tenant, etc.) to frame results from
+your side of the deal. Clause analysis is free; full contract review costs 1 credit per upload.
+```
+
+**Use Cases + Examples**
+```
+1. Contract risk analysis
+   "What are the biggest risks in contract 200 from the tenant's perspective?"
+
+2. Sign or negotiate decision
+   "Should I sign contract 201 as the employee — or push back?"
+
+3. Plain-English walkthrough
+   "Explain contract 200 in plain English. What do I need to know before signing?"
+
+4. Clause analysis (free, no upload needed)
+   "What does this clause mean: 'The vendor shall not be liable for any indirect,
+   incidental, or consequential damages...'"
+
+5. Upload and analyze
+   "Analyze this contract: [paste contract text or Google Doc link]"
+```
+
+**Connection Requirements**
+```
+Requires a free LegalForensics account. Sign up at app.legalforensics.ai/plugin — takes
+2 minutes. New accounts receive 1 free credit. An API key is generated at signup and
+entered in the plugin configuration field in Claude.
+```
+
+**Read/Write Capabilities**
+`Read + Write`
+
+**Is this an MCP App**
+`No`
+
+**Third-party Connections**
+`Third-party AI model integration` (AWS Bedrock Claude 3.5 Sonnet used for contract analysis)
+
+**Data Handling**
+- ✅ Server only accesses data explicitly requested by user
+- ✅ Data transmission is encrypted (HTTPS/TLS)
+
+**Personal Health Data**
+`No`
+
+**Categories**
+`Business & Productivity` + `Other: Legal`
+
+**Sponsored Content**
+`No`
+
+### Authentication
+
+**Current status**: API key auth (`X-LF-API-Key` header). OAuth 2.0 is on the roadmap.
+The form requires OAuth 2.0 for authenticated servers — implement OAuth before resubmitting.
+See OAuth implementation plan in this doc.
+
+**Auth Type (once OAuth implemented)**
+`OAuth 2.0`
+
+**Auth Client**
+`Static OAuth Client`
+
+**Static Client ID**
+`[TO BE FILLED after Cognito app client created]`
+
+**Static Client Secret**
+`[TO BE FILLED — or PKCE only, no secret]`
+
+### Transport
+
+`Streamable HTTP`
+
+---
+
 ## Known Limitations
 
 - Google Doc links must be shared publicly ("Anyone with the link")
