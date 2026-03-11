@@ -4,38 +4,37 @@ Contract risk analysis for Claude Cowork — analyze any MSA, NDA, or SOW direct
 
 ## What it does
 
-The LegalForensics plugin gives Claude access to your contract library via 8 MCP tools:
+The LegalForensics plugin gives Claude access to your contract library via 7 MCP tools:
 
 | Tool | What it returns |
 |---|---|
 | `upload_contract` | Upload a contract and get back a contract_id |
-| `list_contracts` | All contracts in your LF account |
-| `get_risk_analysis` | Full AI risk analysis with risk posture + top risks |
-| `get_verdict` | Sign / negotiate / walk away decision brief |
+| `my_contracts` | All contracts in your LF account |
+| `analyze_risks` | Full AI risk analysis with risk posture + top risks |
+| `sign_or_negotiate` | Sign / negotiate / walk away decision brief |
 | `explain_contract` | Plain-English contract walkthrough for non-lawyers |
-| `set_perspective` | Re-analyze from buyer / seller / vendor / tenant perspective |
-| `get_clause_details` | Deep dive on a single clause with AI rewrite suggestion |
 | `explain_clause` | Explain pasted clause text without uploading a contract |
+| `my_credits` | Check credit balance and get a purchase link if needed |
 
 ## Setup
 
 ### 1. Create a LegalForensics account
 
-Sign up at [legalforensics.ai](https://legalforensics.ai) — takes 2 minutes.
+Sign up at [legalforensics.ai/plugin](https://legalforensics.ai/plugin) — takes 2 minutes.
 
-### 2. Upload your contracts
-
-Upload MSAs, NDAs, SOWs, or any agreement. LF processes and analyzes them automatically.
-
-### 3. Generate an API key
+### 2. Generate an API key
 
 Go to **Settings → API Keys** → click **Generate New Key**.
 
 Copy the key — it's shown once. Store it securely.
 
-### 4. Configure the Cowork plugin
+### 3. Configure the Cowork plugin
 
 In Claude Cowork plugin settings, paste your API key in the **API Key** field.
+
+### 4. Upload your contracts
+
+Upload MSAs, NDAs, SOWs, or any agreement. LF processes and analyzes them automatically.
 
 ### 5. Start analyzing
 
