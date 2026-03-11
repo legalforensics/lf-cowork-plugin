@@ -20,7 +20,7 @@ The LegalForensics plugin gives Claude access to your contract library via 7 MCP
 
 ### 1. Create a LegalForensics account
 
-Sign up at [legalforensics.ai/plugin](https://legalforensics.ai/plugin) — takes 2 minutes.
+Sign up at [app.legalforensics.ai/plugin](https://app.legalforensics.ai/plugin) — takes 2 minutes.
 
 ### 2. Generate an API key
 
