@@ -4,6 +4,96 @@
 
 ---
 
+## End-to-End User Flow
+
+### First-time user (OAuth signup + first tool call)
+
+```
+User on claude.ai
+       │
+       ▼
+Finds LegalForensics in Connectors Directory → clicks Connect
+       │
+       ▼
+Claude redirects browser to Cognito hosted UI
+(us-east-1aassqgtdr.auth.us-east-1.amazoncognito.com)
+       │
+       ├── Returning user: enters email + password → signs in
+       │
+       └── New user: clicks Sign Up → enters email + password
+                  → Cognito sends verification email
+                  → user verifies
+                  → Cognito account created
+       │
+       ▼
+Cognito redirects back to Claude with auth code
+Claude exchanges auth code for Bearer token via PKCE (behind the scenes)
+       │
+       ▼
+User asks Claude: "analyze contract 200" (or any LF request)
+       │
+       ▼
+Claude calls MCP tool on lf-cowork-plugin.onrender.com/mcp
+with header: Authorization: Bearer <cognito_access_token>
+       │
+       ▼
+MCP server extracts Bearer token → forwards to LF API
+(app.legalforensics.ai/api/...)
+with header: Authorization: Bearer <cognito_access_token>
+       │
+       ▼
+LF backend (auth.py: get_current_user_from_token)
+       │
+       ├── Decodes JWT → gets cognito_id (sub)
+       │
+       ├── Looks up user in LF DB → NOT FOUND (first time)
+       │
+       └── _provision_oauth_user() fires automatically:
+               → creates Company record
+               → creates User record (user_type="plugin")
+               → grants 1 free PluginCredit
+               → fetches name + email from Cognito if not in token
+       │
+       ▼
+Tool executes normally → result returned to Claude → shown to user
+User is now fully set up. All future calls find user in DB instantly.
+```
+
+### Returning user (every call after first)
+
+```
+User asks Claude anything about contracts
+       │
+       ▼
+Claude calls MCP tool with Authorization: Bearer <token>
+       │
+       ▼
+LF backend decodes token → finds user in DB → executes tool
+(no provisioning, no redirect, no friction)
+```
+
+### Legacy API key user (existing flow, still supported)
+
+```
+User goes to app.legalforensics.ai/plugin
+       │
+       ▼
+Fills signup form → Cognito account created via Amplify
+pre-register called → Company + User + 1 credit created in LF DB
+API key generated and shown once
+       │
+       ▼
+User pastes API key into Claude connector config
+       │
+       ▼
+Claude calls MCP tool with X-LF-API-Key: lf_xxx
+MCP server forwards X-LF-API-Key to LF API
+LF backend hashes key → looks up in api_keys table → user found
+Tool executes normally
+```
+
+---
+
 ## Plugin Details
 
 | Field | Value |
