@@ -347,7 +347,30 @@ entered in the plugin configuration field in Claude.
 
 **Data Handling**
 - ✅ Server only accesses data explicitly requested by user
+- ✅ No data is stored beyond session requirements
 - ✅ Data transmission is encrypted (HTTPS/TLS)
+
+**Data Handling — Rationale**
+
+The form requires at least 3 selections. We selected the above 3. Rationale for each:
+
+- **Server only accesses data explicitly requested by user** — accurate. The MCP server
+  only calls LF API endpoints in direct response to tool calls the user initiates.
+  No background data collection or scraping.
+
+- **No data is stored beyond session requirements** — accurate at the MCP layer.
+  The MCP server (lf-cowork-plugin on Render) is fully stateless — it stores nothing.
+  It proxies requests to the LF backend which does persist contract data, but the
+  question refers to the MCP server's own data handling. The LF backend storage is
+  transparent to users (they upload contracts explicitly) and covered by the LF
+  Terms of Service / Privacy Policy.
+
+- **Data transmission is encrypted (HTTPS/TLS)** — accurate. All traffic between
+  Claude → MCP server → LF backend uses HTTPS.
+
+**Why we did not select GDPR compliant:** LegalForensics has not completed a formal
+GDPR compliance review. Selecting it without a DPA, privacy notice review, and data
+processing audit would be inaccurate. This can be added in a future update.
 
 **Personal Health Data**
 `No`
