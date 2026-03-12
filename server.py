@@ -18,6 +18,7 @@ import asyncio
 import os
 import httpx
 from mcp.server.fastmcp import FastMCP, Context
+from mcp.types import ToolAnnotations
 from mcp.server.fastmcp.server import TransportSecuritySettings
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
@@ -169,7 +170,13 @@ async def _fetch_with_heartbeat(
 # ---------------------------------------------------------------------------
 # Tool 1: List contracts
 # ---------------------------------------------------------------------------
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="List My Contracts",
+        readOnlyHint=True,
+        openWorldHint=True,
+    )
+)
 async def my_contracts(ctx: Context, search: str = "") -> list[dict]:
     """
     List all contracts in your LegalForensics account.
@@ -212,7 +219,13 @@ async def my_contracts(ctx: Context, search: str = "") -> list[dict]:
 # ---------------------------------------------------------------------------
 # Tool 2: Credits
 # ---------------------------------------------------------------------------
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Check My Credits",
+        readOnlyHint=True,
+        openWorldHint=True,
+    )
+)
 async def my_credits(ctx: Context) -> dict:
     """
     Check your LegalForensics credit balance.
@@ -282,7 +295,13 @@ _VALID_PERSPECTIVES = {
 }
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Analyze Contract Risks",
+        readOnlyHint=False,
+        openWorldHint=True,
+    )
+)
 async def analyze_risks(
     ctx: Context,
     contract_id: int,
@@ -364,7 +383,13 @@ async def analyze_risks(
 # ---------------------------------------------------------------------------
 # Tool 4: Decision guidance
 # ---------------------------------------------------------------------------
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Sign or Negotiate Decision",
+        readOnlyHint=False,
+        openWorldHint=True,
+    )
+)
 async def sign_or_negotiate(
     ctx: Context,
     contract_id: int,
@@ -444,7 +469,13 @@ async def sign_or_negotiate(
 # ---------------------------------------------------------------------------
 # Tool 5: Narrative walkthrough
 # ---------------------------------------------------------------------------
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Explain Contract in Plain English",
+        readOnlyHint=True,
+        openWorldHint=True,
+    )
+)
 async def explain_contract(ctx: Context, contract_id: int) -> str:
     """
     Get a plain-English narrative walkthrough of a contract.
@@ -476,7 +507,13 @@ async def explain_contract(ctx: Context, contract_id: int) -> str:
 # ---------------------------------------------------------------------------
 # Tool 6: Explain clause (ad-hoc, no contract upload needed)
 # ---------------------------------------------------------------------------
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Explain a Clause",
+        readOnlyHint=True,
+        openWorldHint=True,
+    )
+)
 async def explain_clause(
     ctx: Context,
     clause_text: str,
@@ -592,7 +629,14 @@ def _infer_content_type(filename: str) -> str:
     }.get(ext, "application/octet-stream")
 
 
-@mcp.tool()
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="Upload Contract",
+        readOnlyHint=False,
+        destructiveHint=False,
+        openWorldHint=True,
+    )
+)
 async def upload_contract(
     ctx: Context,
     file_url: str = "",
