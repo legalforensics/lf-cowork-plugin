@@ -304,7 +304,8 @@ _VALID_PERSPECTIVES = {
 )
 async def analyze_risks(
     ctx: Context,
-    contract_id: int,
+    contract_id: int = 0,
+    contract_uuid: str = "",
     perspective: str = "",
     force_refresh: bool = False,
 ) -> dict:
@@ -315,7 +316,10 @@ async def analyze_risks(
     financial/operational/regulatory exposure bands, and recommended next steps.
 
     Args:
-        contract_id: LF contract ID (get from my_contracts).
+        contract_id: LF contract ID integer (get from my_contracts or upload_contract result).
+        contract_uuid: UUID returned by upload_contract when status is 'processing'.
+            Pass this instead of contract_id — analyze_risks will wait for the upload
+            pipeline to finish, then run the analysis automatically.
         perspective: Optional. Your role in this contract — frames all risks,
             verdict, and recommendations from your side of the deal.
             Use the role name (e.g. "landlord", "employee"), not your company name.
@@ -336,7 +340,43 @@ async def analyze_risks(
             discarding the cached result. Use when switching perspective for
             the first time or after a contract is re-uploaded.
     """
+    if not contract_id and not contract_uuid:
+        raise ValueError("Provide either contract_id or contract_uuid.")
+
     auth = _get_auth_headers(ctx)
+
+    # If contract_uuid provided, poll status until completed to resolve integer contract_id
+    if contract_uuid and not contract_id:
+        await ctx.info("Waiting for upload pipeline to complete before running analysis...")
+        status_url = f"{LF_BASE_URL}/api/contracts/{contract_uuid}/status"
+        beat = asyncio.create_task(_heartbeat_task(ctx))
+        try:
+            for attempt in range(60):  # up to ~3 min (30×1s + 30×3s)
+                await asyncio.sleep(1 if attempt < 30 else 3)
+                async with httpx.AsyncClient(timeout=30) as client:
+                    try:
+                        sr = await client.get(status_url, headers=auth)
+                        sr.raise_for_status()
+                        status_body = sr.json()
+                    except httpx.HTTPError:
+                        continue
+                if status_body.get("status") == "completed":
+                    contract_id = status_body.get("contract_id")
+                    if not contract_id:
+                        raise RuntimeError("Upload completed but no contract_id returned.")
+                    break
+                if status_body.get("status") == "failed":
+                    raise RuntimeError(
+                        f"Contract processing failed: {status_body.get('error', 'unknown error')}."
+                    )
+            else:
+                raise RuntimeError(
+                    "Contract processing timed out after 3 minutes. "
+                    "Try again in a moment — use my_contracts to find your contract_id."
+                )
+        finally:
+            beat.cancel()
+        await ctx.info(f"Upload complete (contract_id={contract_id}). Running risk analysis...")
 
     # Validate and set perspective before fetching analysis
     if perspective and perspective.strip():
@@ -392,7 +432,8 @@ async def analyze_risks(
 )
 async def sign_or_negotiate(
     ctx: Context,
-    contract_id: int,
+    contract_id: int = 0,
+    contract_uuid: str = "",
     perspective: str = "",
     force_refresh: bool = False,
 ) -> dict:
@@ -403,7 +444,10 @@ async def sign_or_negotiate(
     priorities, structural risk assessment, and top 3 actions.
 
     Args:
-        contract_id: LF contract ID (get from my_contracts).
+        contract_id: LF contract ID integer (get from my_contracts or upload_contract result).
+        contract_uuid: UUID returned by upload_contract when status is 'processing'.
+            Pass this instead of contract_id — sign_or_negotiate will wait for the upload
+            pipeline to finish, then run the analysis automatically.
         perspective: Optional. Your role in this contract — frames the verdict
             and all recommendations from your side of the deal.
             Use the role name (e.g. "landlord", "employee"), not your company name.
@@ -424,7 +468,43 @@ async def sign_or_negotiate(
         force_refresh: Set to true to regenerate the verdict from scratch,
             discarding the cached result.
     """
+    if not contract_id and not contract_uuid:
+        raise ValueError("Provide either contract_id or contract_uuid.")
+
     auth = _get_auth_headers(ctx)
+
+    # If contract_uuid provided, poll status until completed to resolve integer contract_id
+    if contract_uuid and not contract_id:
+        await ctx.info("Waiting for upload pipeline to complete before running analysis...")
+        status_url = f"{LF_BASE_URL}/api/contracts/{contract_uuid}/status"
+        beat = asyncio.create_task(_heartbeat_task(ctx))
+        try:
+            for attempt in range(60):  # up to ~3 min (30×1s + 30×3s)
+                await asyncio.sleep(1 if attempt < 30 else 3)
+                async with httpx.AsyncClient(timeout=30) as client:
+                    try:
+                        sr = await client.get(status_url, headers=auth)
+                        sr.raise_for_status()
+                        status_body = sr.json()
+                    except httpx.HTTPError:
+                        continue
+                if status_body.get("status") == "completed":
+                    contract_id = status_body.get("contract_id")
+                    if not contract_id:
+                        raise RuntimeError("Upload completed but no contract_id returned.")
+                    break
+                if status_body.get("status") == "failed":
+                    raise RuntimeError(
+                        f"Contract processing failed: {status_body.get('error', 'unknown error')}."
+                    )
+            else:
+                raise RuntimeError(
+                    "Contract processing timed out after 3 minutes. "
+                    "Try again in a moment — use my_contracts to find your contract_id."
+                )
+        finally:
+            beat.cancel()
+        await ctx.info(f"Upload complete (contract_id={contract_id}). Running decision analysis...")
 
     if perspective and perspective.strip():
         p = perspective.strip().lower()
@@ -797,102 +877,44 @@ async def upload_contract(
             await _refund_credit(auth)
         return body
 
-    # --- Poll status until done ---
-    # Poll for up to 90s then return early — contract continues processing in
-    # the background and user can retrieve it with my_contracts.
-    # Poll schedule: 1s for first 15 attempts, then 3s.
+    # Return immediately — analysis runs in the background on the LF backend.
+    # The user calls analyze_risks with contract_uuid and it waits there (with heartbeat).
     _large_contract = len(file_bytes) > 500_000  # ~5-6 pages of text PDF
-    _poll_attempts = 30  # ~60s max (15×1s + 15×3s)
-    _progress_messages = {
-        0:  "Contract uploaded. Extracting text and structure...",
-        5:  "Classifying contract type and identifying clauses...",
-        10: "Running risk assessment and field extraction...",
-        20: "Finalizing analysis...",
-    }
 
-    await ctx.info("Contract received. Starting AI analysis pipeline...")
+    await ctx.info("Contract received. AI analysis pipeline started in the background.")
 
-    status_url = f"{LF_BASE_URL}/api/contracts/{contract_uuid}/status"
-
-    for attempt in range(_poll_attempts):
-        # Fast polling for first 15s (attempts 0-4), then 3s intervals
-        await asyncio.sleep(1 if attempt < 15 else 3)
-
-        if attempt in _progress_messages:
-            await ctx.info(_progress_messages[attempt])
-
-        async with httpx.AsyncClient(timeout=30) as client:
-            try:
-                sr = await client.get(status_url, headers=auth)
-                sr.raise_for_status()
-                status = sr.json()
-            except httpx.HTTPError:
-                continue  # transient network hiccup — keep polling
-
-        if status.get("status") == "completed":
-            result = {
-                "contract_id": status.get("contract_id"),
-                "title": status.get("title"),
-                "contract_type": status.get("contract_type"),
-                "filename": status.get("filename"),
-                "message": (
-                    "Contract uploaded and processed. "
-                    "Use the contract_id with analyze_risks, "
-                    "sign_or_negotiate, or explain_contract."
-                ),
-            }
-            # Warn for large contracts (quality may be reduced)
-            if _large_contract:
-                result["large_contract_notice"] = (
-                    "This contract is large. Risk analysis and AI summary cover the first "
-                    "~5-6 pages of the document. Substantive clauses deeper in the contract "
-                    "(termination, liability, performance, export controls) may not be fully "
-                    "captured. Use explain_clause to analyse specific sections you are "
-                    "concerned about."
-                )
-            # Warn when this was the last credit
-            if remaining == 1:
-                last_credit_url = await _get_checkout_url(auth)
-                warning = "This was your last credit. "
-                warning += f"Purchase more at: {last_credit_url}" if last_credit_url else "Visit legalforensics.ai to purchase credits."
-                result["warning"] = warning
-            # Auto-set perspective if provided and valid
-            if perspective and perspective.strip() and result.get("contract_id"):
-                p = perspective.strip().lower()
-                if p in _VALID_PERSPECTIVES:
-                    try:
-                        async with httpx.AsyncClient(timeout=15) as pclient:
-                            await pclient.post(
-                                f"{LF_BASE_URL}/api/contracts/{result['contract_id']}/perspective",
-                                json={"party": p},
-                                headers=_lf_headers(auth),
-                            )
-                        result["perspective"] = p
-                    except Exception:
-                        pass  # non-fatal
-
-            return result
-
-        if status.get("status") == "failed":
-            if not is_subscription:
-                await _refund_credit(auth)
-            raise RuntimeError(
-                f"Contract processing failed: {status.get('error', 'unknown error')}."
-                + ("" if is_subscription else " Your credit has been refunded.")
-            )
-
-    # Processing still running after timeout — credit already deducted, no refund
-    # (contract may still complete in background)
-    return {
-        "status": "processing",
+    result: dict = {
         "contract_uuid": contract_uuid,
+        "status": "processing",
         "message": (
-            "Contract uploaded and being processed in the background. "
-            "Large contracts (30+ pages) can take 2–5 minutes. "
-            "Run my_contracts in 2–3 minutes to find your contract, "
-            "then call analyze_risks with the contract_id."
+            "Contract uploaded successfully. "
+            "AI analysis is running in the background (typically 2–3 minutes). "
+            "Call analyze_risks or sign_or_negotiate with contract_uuid='"
+            + contract_uuid
+            + "' — it will wait for processing to complete automatically."
         ),
     }
+    if title:
+        result["title"] = title
+
+    if _large_contract:
+        result["large_contract_notice"] = (
+            "This contract is large. Risk analysis covers the first ~5-6 pages. "
+            "Use explain_clause for specific sections deeper in the document."
+        )
+
+    if remaining == 1:
+        last_credit_url = await _get_checkout_url(auth)
+        warning = "This was your last credit. "
+        warning += f"Purchase more at: {last_credit_url}" if last_credit_url else "Visit legalforensics.ai to purchase credits."
+        result["warning"] = warning
+
+    if perspective and perspective.strip():
+        result["perspective_hint"] = (
+            f"Pass perspective='{perspective.strip().lower()}' to analyze_risks or sign_or_negotiate."
+        )
+
+    return result
 
 
 if __name__ == "__main__":
