@@ -4,6 +4,32 @@
 
 ---
 
+## Stable API Contract
+
+The MCP server proxies to these LF backend endpoints. These must remain
+backwards-compatible — do not change their paths, methods, or response shapes
+without updating the MCP server at the same time.
+
+Everything else in the backend (subscription features, new endpoints, refactors,
+bug fixes) can change freely without affecting the connector.
+
+| Method | Endpoint | Used by |
+|---|---|---|
+| GET | `/api/contracts/my-contracts` | `my_contracts` |
+| GET | `/api/stripe/credits` | `my_credits`, `upload_contract` |
+| POST | `/api/stripe/create-checkout` | `my_credits`, `upload_contract` |
+| POST | `/api/stripe/credits/deduct` | `upload_contract` |
+| POST | `/api/stripe/credits/refund` | `upload_contract` |
+| POST | `/api/contracts/upload` | `upload_contract` |
+| GET | `/api/contracts/{uuid}/status` | `upload_contract` |
+| POST | `/api/contracts/{id}/perspective` | `analyze_risks`, `sign_or_negotiate`, `upload_contract` |
+| GET | `/api/contracts/{id}/analysis-report` | `analyze_risks` |
+| GET | `/api/contracts/{id}/decision-guidance` | `sign_or_negotiate` |
+| GET | `/api/contracts/{id}/narrative-walkthrough` | `explain_contract` |
+| POST | `/api/plugin/explain-clause` | `explain_clause` |
+
+---
+
 ## End-to-End User Flow
 
 ### First-time user (OAuth signup + first tool call)
