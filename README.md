@@ -1,96 +1,67 @@
-# LegalForensics Cowork Plugin
+# LegalForensics — Claude Connector
 
-Contract risk analysis for Claude Cowork — analyze any MSA, NDA, or SOW directly from your workspace.
+Contract review directly inside Claude. Upload any MSA, NDA, SOW, employment, or lease agreement and get a full risk analysis, sign/negotiate/walk away verdict, and plain-English walkthrough — without leaving your conversation.
 
-## What it does
+## Quick Setup
 
-The LegalForensics plugin gives Claude access to your contract library via 7 MCP tools:
+1. claude.ai → **Settings → Connectors → Add custom connector**
+2. URL: `https://lf-cowork-plugin.onrender.com/mcp`
+3. OAuth Client ID: `4q850suef3bj1pde4bc5gp75lt`
+4. Click **Connect** → sign in → you're ready
 
-| Tool | What it returns |
-|---|---|
-| `upload_contract` | Upload a contract and get back a contract_id |
-| `my_contracts` | All contracts in your LF account |
-| `analyze_risks` | Full AI risk analysis with risk posture + top risks |
-| `sign_or_negotiate` | Sign / negotiate / walk away decision brief |
-| `explain_contract` | Plain-English contract walkthrough for non-lawyers |
-| `explain_clause` | Explain pasted clause text without uploading a contract |
-| `my_credits` | Check credit balance and get a purchase link if needed |
-
-## Setup
-
-### 1. Create a LegalForensics account
-
-Sign up at [app.legalforensics.ai/plugin](https://app.legalforensics.ai/plugin) — takes 2 minutes.
-
-### 2. Generate an API key
-
-Go to **Settings → API Keys** → click **Generate New Key**.
-
-Copy the key — it's shown once. Store it securely.
-
-### 3. Configure the Cowork plugin
-
-In Claude Cowork plugin settings, paste your API key in the **API Key** field.
-
-### 4. Upload your contracts
-
-Upload MSAs, NDAs, SOWs, or any agreement. LF processes and analyzes them automatically.
-
-### 5. Start analyzing
-
-```
-/lf:analyze 42
-/lf:brief 42
-/lf:narrative 42
-/lf:perspective 42 buyer
-```
-
-Or just ask Claude naturally:
-
-> "Analyze contract 42 and tell me what the biggest risks are."
+New accounts receive 1 free credit automatically. Full setup guide: [USER_GUIDE.md](USER_GUIDE.md)
 
 ---
 
-## Slash Commands
+## Tools
 
-| Command | Description |
-|---|---|
-| `/lf:analyze <id>` | Full risk analysis |
-| `/lf:brief <id>` | One-page decision brief |
-| `/lf:narrative <id>` | Plain-English walkthrough |
-| `/lf:perspective <id> <perspective>` | Switch negotiating perspective |
+| Tool | Description | Credit |
+|---|---|---|
+| `upload_contract` | Upload via Google Doc link or pasted text. Returns `contract_uuid`. | 1 credit |
+| `analyze_risks` | Full risk analysis — posture, top risks, exposure bands, favorable terms. Accepts `contract_id` or `contract_uuid`. | Free |
+| `sign_or_negotiate` | Sign / negotiate / walk away verdict with reasoning and priority asks. Accepts `contract_id` or `contract_uuid`. | Free |
+| `explain_contract` | Plain-English narrative walkthrough of a full contract. | Free |
+| `explain_clause` | Plain-English explanation of a pasted clause. No upload needed. | Free |
+| `my_contracts` | List all contracts in account, optionally filtered by keyword. | Free |
+| `my_credits` | Check credit balance. Returns purchase link if balance is zero. | Free |
+
+---
+
+## Auth
+
+Supports two modes:
+
+**OAuth 2.0 (primary)** — Authorization Code + PKCE via AWS Cognito. Claude drives the flow; users sign in via the Cognito hosted UI. New users are auto-provisioned on first call.
+
+**API key (legacy)** — `X-LF-API-Key: lf_<key>` header. Generate a key at app.legalforensics.ai → Settings → API Keys.
 
 ---
 
 ## Architecture
 
 ```
-Cowork → Claude → MCP protocol (HTTP + SSE)
-                      ↓
-              lf-cowork-plugin (this repo, Render.com)
-                      ↓ REST + X-LF-API-Key
-              lf-nextgen-services (LF API)
-                      ↓
-              PostgreSQL (your contracts, multi-tenant isolated)
+claude.ai
+    │  OAuth 2.0 Bearer token or X-LF-API-Key
+    ▼
+lf-cowork-plugin (this repo, Render.com)
+    │  Bearer token or X-LF-API-Key forwarded
+    ▼
+lf-nextgen-services (LF API, app.legalforensics.ai)
+    │
+    ▼
+PostgreSQL + AWS Bedrock (Claude 3.5 Sonnet)
 ```
 
 ---
 
-## Self-Hosting
+## Roadmap
 
-```bash
-git clone https://github.com/legalforensics/lf-cowork-plugin
-cd lf-cowork-plugin
-pip install -r requirements.txt
-LF_BASE_URL=https://api.legalforensics.ai python server.py
-```
-
-Or deploy to Render using the included `render.yaml`.
+See [ROADMAP.md](ROADMAP.md) — including planned contract history intelligence features (personal baseline comparison, portfolio outlier detection, cross-contract conflict detection).
 
 ---
 
 ## Support
 
-- Documentation: [legalforensics.ai/docs](https://legalforensics.ai/docs)
-- Issues: [github.com/legalforensics/lf-cowork-plugin/issues](https://github.com/legalforensics/lf-cowork-plugin/issues)
-- Email: support@legalforensics.ai
+- User guide: [USER_GUIDE.md](USER_GUIDE.md)
+- Setup page: [legalforensics.ai/claude](https://legalforensics.ai/claude)
+- Email: amit@legalforensics.ai
